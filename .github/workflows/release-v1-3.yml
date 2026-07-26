@@ -1,0 +1,47 @@
+name: Build Signed Offline Ledger v1.3.0
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-signed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build release APK
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Download existing release signing key
+        uses: actions/download-artifact@v4
+        with:
+          name: offline-savings-ledger-release
+          path: signing
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: hjj915566202-lab/Yan
+          run-id: 30200964550
+      - name: Sign and verify APK
+        run: |
+          $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.3.0-aligned.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks signing/offline-ledger.keystore --ks-pass pass:offlineledger --key-pass pass:offlineledger --out offline-savings-ledger-v1.3.0.apk offline-savings-ledger-v1.3.0-aligned.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs offline-savings-ledger-v1.3.0.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-savings-ledger-v1.3.0
+          path: offline-savings-ledger-v1.3.0.apk
+          retention-days: 7
