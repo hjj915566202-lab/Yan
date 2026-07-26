@@ -14,6 +14,9 @@ public final class LedgerStore {
     private static final String TX = "transactions";
     private static final String PLANS = "plans_by_month";
     private static final String LEGACY_PLAN = "plan";
+    private static final String DIAGNOSTICS = "notification_diagnostics";
+    private static final String LISTENER_STATE = "notification_listener_state";
+    private static final String DIAGNOSTICS_ENABLED = "notification_diagnostics_enabled";
     private LedgerStore() {}
 
     public static final class Tx {
@@ -72,22 +75,88 @@ public final class LedgerStore {
         migrateLegacyPlanIfNeeded(c);
         try {
             JSONObject all = new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
-            JSONObject p = all.optJSONObject(month);
-            return p == null ? new JSONObject() : new JSONObject(p.toString());
+            JSONObject stored = all.optJSONObject(month);
+            if(stored == null) return new JSONObject();
+            JSONObject p = new JSONObject(stored.toString());
+            boolean changed = normalizePlan(p);
+            if(changed) {
+                all.put(month,p);
+                c.getSharedPreferences(PREFS,0).edit().putString(PLANS,all.toString()).apply();
+            }
+            return p;
         } catch(Exception ignored) { return new JSONObject(); }
     }
 
     public static synchronized void savePlan(Context c, String month, JSONObject plan) {
         migrateLegacyPlanIfNeeded(c);
         try {
+            normalizePlan(plan);
             JSONObject all = new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
             all.put(month, plan);
             c.getSharedPreferences(PREFS,0).edit().putString(PLANS,all.toString()).apply();
         } catch(Exception ignored) {}
     }
 
+    private static boolean normalizePlan(JSONObject p) throws Exception {
+        boolean changed=false;
+        if(!p.has("personalPreviousBalance")) {
+            p.put("personalPreviousBalance",p.optLong("previousBalance",0)); changed=true;
+        }
+        if(!p.has("sharedPreviousBalance")) { p.put("sharedPreviousBalance",0); changed=true; }
+        if(!p.has("sharedTransfer")) { p.put("sharedTransfer",0); changed=true; }
+        if(p.has("previousBalance")) { p.remove("previousBalance"); changed=true; }
+        return changed;
+    }
+
+    public static synchronized void recordNotification(Context c, String pkg, String title, String detail,
+                                                        long amount, boolean candidate, boolean imported,
+                                                        String reason, long postTime) {
+        try {
+            JSONArray old = diagnostics(c);
+            JSONArray out = new JSONArray();
+            JSONObject o = new JSONObject();
+            o.put("time",postTime); o.put("package",safe(pkg,120)); o.put("title",safe(title,200));
+            o.put("detail",safe(detail,1600)); o.put("amount",amount); o.put("candidate",candidate);
+            o.put("imported",imported); o.put("reason",safe(reason,200));
+            out.put(o);
+            for(int i=0;i<old.length() && out.length()<30;i++) out.put(old.getJSONObject(i));
+            c.getSharedPreferences(PREFS,0).edit().putString(DIAGNOSTICS,out.toString()).apply();
+        } catch(Exception ignored) {}
+    }
+
+    public static JSONArray diagnostics(Context c) {
+        try { return new JSONArray(c.getSharedPreferences(PREFS,0).getString(DIAGNOSTICS,"[]")); }
+        catch(Exception ignored) { return new JSONArray(); }
+    }
+
+    public static void clearDiagnostics(Context c) {
+        c.getSharedPreferences(PREFS,0).edit().remove(DIAGNOSTICS).apply();
+    }
+
+    public static boolean diagnosticsEnabled(Context c) {
+        return c.getSharedPreferences(PREFS,0).getBoolean(DIAGNOSTICS_ENABLED,true);
+    }
+
+    public static void setDiagnosticsEnabled(Context c, boolean enabled) {
+        c.getSharedPreferences(PREFS,0).edit().putBoolean(DIAGNOSTICS_ENABLED,enabled).apply();
+    }
+
+    public static void setListenerState(Context c, String state) {
+        c.getSharedPreferences(PREFS,0).edit().putString(LISTENER_STATE,state).apply();
+    }
+
+    public static String listenerState(Context c) {
+        return c.getSharedPreferences(PREFS,0).getString(LISTENER_STATE,"尚未收到系统连接回调");
+    }
+
     public static synchronized void clearAll(Context c) {
-        c.getSharedPreferences(PREFS,0).edit().remove(TX).remove(PLANS).remove(LEGACY_PLAN).apply();
+        c.getSharedPreferences(PREFS,0).edit().remove(TX).remove(PLANS).remove(LEGACY_PLAN)
+                .remove(DIAGNOSTICS).remove(LISTENER_STATE).apply();
+    }
+
+    private static String safe(String s, int max) {
+        if(s==null) return "";
+        return s.length()>max?s.substring(0,max):s;
     }
 
     private static void migrateLegacyPlanIfNeeded(Context c) {
@@ -98,9 +167,11 @@ public final class LedgerStore {
         try {
             JSONObject old = new JSONObject(legacy);
             JSONObject p = new JSONObject();
-            p.put("previousBalance", old.optLong("start",0));
+            p.put("personalPreviousBalance", old.optLong("start",0));
+            p.put("sharedPreviousBalance",0);
             p.put("salary", old.optLong("income",0));
             p.put("otherFixed", old.optLong("fixed",0));
+            p.put("sharedTransfer",0);
             JSONObject all = new JSONObject();
             all.put(monthNow(),p);
             c.getSharedPreferences(PREFS,0).edit().putString(PLANS,all.toString()).remove(LEGACY_PLAN).apply();
