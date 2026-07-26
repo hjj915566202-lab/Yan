@@ -28,15 +28,26 @@ jobs:
           gradle-version: '8.7'
       - name: Build release APK
         run: gradle --no-daemon :app:assembleRelease
-      - name: Create test signing key
+      - name: Create persistent signing key for this release
         run: keytool -genkeypair -v -keystore offline-ledger.keystore -storepass offlineledger -keypass offlineledger -alias offlineledger -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=Offline Ledger, OU=Local, O=Offline, L=Tokyo, S=Tokyo, C=JP"
       - name: Sign APK
         run: |
           $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-aligned.apk
           $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks offline-ledger.keystore --ks-pass pass:offlineledger --key-pass pass:offlineledger --out offline-savings-ledger.apk offline-savings-ledger-aligned.apk
           $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose offline-savings-ledger.apk
+      - name: Write signing information
+        run: |
+          cat > SIGNING-INFO.txt <<'EOF'
+          Keep offline-ledger.keystore private and safe. It is required to sign every future update.
+          Alias: offlineledger
+          Keystore password: offlineledger
+          Key password: offlineledger
+          EOF
       - uses: actions/upload-artifact@v4
         with:
-          name: offline-savings-ledger-apk
-          path: offline-savings-ledger.apk
+          name: offline-savings-ledger-release
+          path: |
+            offline-savings-ledger.apk
+            offline-ledger.keystore
+            SIGNING-INFO.txt
           retention-days: 7
