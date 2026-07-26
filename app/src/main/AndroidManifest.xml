@@ -28,9 +28,10 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+            <!-- Include silent and ongoing notifications. Some Wallet payment notices are silent. -->
             <meta-data
                 android:name="android.service.notification.default_filter_types"
-                android:value="conversations|alerting" />
+                android:value="conversations|alerting|silent|ongoing" />
         </service>
     </application>
 </manifest>
