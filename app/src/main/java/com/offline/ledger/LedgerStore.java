@@ -12,7 +12,8 @@ import java.util.Locale;
 public final class LedgerStore {
     private static final String PREFS = "offline_ledger";
     private static final String TX = "transactions";
-    private static final String PLAN = "plan";
+    private static final String PLANS = "plans_by_month";
+    private static final String LEGACY_PLAN = "plan";
     private LedgerStore() {}
 
     public static final class Tx {
@@ -59,13 +60,51 @@ public final class LedgerStore {
         list.add(tx); save(c,list); return true;
     }
 
-    public static JSONObject plan(Context c) {
-        try { return new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLAN,"{}")); }
-        catch(Exception e) { return new JSONObject(); }
+    public static boolean hasPlan(Context c, String month) {
+        migrateLegacyPlanIfNeeded(c);
+        try {
+            JSONObject all = new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
+            return all.has(month);
+        } catch(Exception ignored) { return false; }
     }
 
-    public static void savePlan(Context c, JSONObject o) {
-        c.getSharedPreferences(PREFS,0).edit().putString(PLAN,o.toString()).apply();
+    public static JSONObject plan(Context c, String month) {
+        migrateLegacyPlanIfNeeded(c);
+        try {
+            JSONObject all = new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
+            JSONObject p = all.optJSONObject(month);
+            return p == null ? new JSONObject() : new JSONObject(p.toString());
+        } catch(Exception ignored) { return new JSONObject(); }
+    }
+
+    public static synchronized void savePlan(Context c, String month, JSONObject plan) {
+        migrateLegacyPlanIfNeeded(c);
+        try {
+            JSONObject all = new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
+            all.put(month, plan);
+            c.getSharedPreferences(PREFS,0).edit().putString(PLANS,all.toString()).apply();
+        } catch(Exception ignored) {}
+    }
+
+    public static synchronized void clearAll(Context c) {
+        c.getSharedPreferences(PREFS,0).edit().remove(TX).remove(PLANS).remove(LEGACY_PLAN).apply();
+    }
+
+    private static void migrateLegacyPlanIfNeeded(Context c) {
+        String existing = c.getSharedPreferences(PREFS,0).getString(PLANS,"");
+        if(existing != null && !existing.isEmpty()) return;
+        String legacy = c.getSharedPreferences(PREFS,0).getString(LEGACY_PLAN,"");
+        if(legacy == null || legacy.isEmpty() || "{}".equals(legacy)) return;
+        try {
+            JSONObject old = new JSONObject(legacy);
+            JSONObject p = new JSONObject();
+            p.put("previousBalance", old.optLong("start",0));
+            p.put("salary", old.optLong("income",0));
+            p.put("otherFixed", old.optLong("fixed",0));
+            JSONObject all = new JSONObject();
+            all.put(monthNow(),p);
+            c.getSharedPreferences(PREFS,0).edit().putString(PLANS,all.toString()).remove(LEGACY_PLAN).apply();
+        } catch(Exception ignored) {}
     }
 
     public static String today() {
@@ -73,4 +112,14 @@ public final class LedgerStore {
         return String.format(Locale.US,"%04d-%02d-%02d",x.get(Calendar.YEAR),x.get(Calendar.MONTH)+1,x.get(Calendar.DAY_OF_MONTH));
     }
     public static String monthNow() { return today().substring(0,7); }
+
+    public static String shiftMonth(String month, int delta) {
+        try {
+            int year=Integer.parseInt(month.substring(0,4));
+            int m=Integer.parseInt(month.substring(5,7));
+            Calendar c=Calendar.getInstance();
+            c.clear(); c.set(year,m-1,1); c.add(Calendar.MONTH,delta);
+            return String.format(Locale.US,"%04d-%02d",c.get(Calendar.YEAR),c.get(Calendar.MONTH)+1);
+        } catch(Exception ignored) { return monthNow(); }
+    }
 }
