@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -14,6 +15,8 @@ public final class LedgerStore {
     private static final String TX = "transactions";
     private static final String PLANS = "plans_by_month";
     private static final String LEGACY_PLAN = "plan";
+    private static final String FIXED_SNAPSHOTS = "fixed_expense_snapshots";
+    private static final String FIXED_MIGRATED = "fixed_expense_snapshots_migrated";
     private static final String DIAGNOSTICS = "notification_diagnostics";
     private static final String LISTENER_STATE = "notification_listener_state";
     private static final String DIAGNOSTICS_ENABLED = "notification_diagnostics_enabled";
@@ -38,6 +41,25 @@ public final class LedgerStore {
             t.source=o.optString("source","手动"); t.raw=o.optString("raw");
             t.amount=o.optLong("amount"); t.pending=o.optBoolean("pending");
             return t;
+        }
+    }
+
+    public static final class FixedExpense {
+        public String id, name, wallet;
+        public long amount;
+
+        public FixedExpense() {}
+        public FixedExpense(String id, String name, long amount, String wallet) {
+            this.id=id; this.name=name; this.amount=amount; this.wallet=wallet;
+        }
+        JSONObject json() throws Exception {
+            JSONObject o=new JSONObject();
+            o.put("id",id); o.put("name",name); o.put("amount",amount); o.put("wallet",wallet);
+            return o;
+        }
+        static FixedExpense from(JSONObject o) {
+            return new FixedExpense(o.optString("id"),o.optString("name","固定支出"),
+                    o.optLong("amount"),o.optString("wallet","个人"));
         }
     }
 
@@ -108,9 +130,106 @@ public final class LedgerStore {
         return changed;
     }
 
+    public static List<FixedExpense> fixedExpenses(Context c, String month) {
+        migrateFixedExpensesIfNeeded(c);
+        List<FixedExpense> out=new ArrayList<>();
+        try {
+            JSONObject snapshots=new JSONObject(c.getSharedPreferences(PREFS,0).getString(FIXED_SNAPSHOTS,"{}"));
+            String effective=findEffectiveMonth(snapshots,month);
+            if(effective.isEmpty()) return out;
+            JSONArray a=snapshots.optJSONArray(effective);
+            if(a!=null) for(int i=0;i<a.length();i++) out.add(FixedExpense.from(a.getJSONObject(i)));
+        } catch(Exception ignored) {}
+        return out;
+    }
+
+    public static String fixedExpenseEffectiveMonth(Context c, String month) {
+        migrateFixedExpensesIfNeeded(c);
+        try {
+            JSONObject snapshots=new JSONObject(c.getSharedPreferences(PREFS,0).getString(FIXED_SNAPSHOTS,"{}"));
+            return findEffectiveMonth(snapshots,month);
+        } catch(Exception ignored) { return ""; }
+    }
+
+    public static synchronized void saveFixedExpensesFromMonth(Context c, String month, List<FixedExpense> items) {
+        migrateFixedExpensesIfNeeded(c);
+        try {
+            JSONObject snapshots=new JSONObject(c.getSharedPreferences(PREFS,0).getString(FIXED_SNAPSHOTS,"{}"));
+            snapshots.put(month,fixedArray(items));
+            c.getSharedPreferences(PREFS,0).edit()
+                    .putString(FIXED_SNAPSHOTS,snapshots.toString())
+                    .putBoolean(FIXED_MIGRATED,true).apply();
+        } catch(Exception ignored) {}
+    }
+
+    private static String findEffectiveMonth(JSONObject snapshots,String month) {
+        String best="";
+        Iterator<String> keys=snapshots.keys();
+        while(keys.hasNext()) {
+            String k=keys.next();
+            if(k.compareTo(month)<=0 && (best.isEmpty() || k.compareTo(best)>0)) best=k;
+        }
+        return best;
+    }
+
+    private static JSONArray fixedArray(List<FixedExpense> items) throws Exception {
+        JSONArray a=new JSONArray();
+        for(FixedExpense item:items) a.put(item.json());
+        return a;
+    }
+
+    private static synchronized void migrateFixedExpensesIfNeeded(Context c) {
+        if(c.getSharedPreferences(PREFS,0).getBoolean(FIXED_MIGRATED,false)) return;
+        migrateLegacyPlanIfNeeded(c);
+        try {
+            JSONObject plans=new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
+            List<String> months=new ArrayList<>();
+            Iterator<String> keys=plans.keys();
+            while(keys.hasNext()) months.add(keys.next());
+            Collections.sort(months);
+
+            JSONObject snapshots=new JSONObject();
+            String previousSignature=null;
+            for(String month:months) {
+                JSONObject p=plans.optJSONObject(month);
+                if(p==null) continue;
+                List<FixedExpense> items=legacyFixedItems(p);
+                JSONArray array=fixedArray(items);
+                String signature=array.toString();
+                if(previousSignature==null || !previousSignature.equals(signature)) {
+                    snapshots.put(month,array);
+                    previousSignature=signature;
+                }
+            }
+            c.getSharedPreferences(PREFS,0).edit()
+                    .putString(FIXED_SNAPSHOTS,snapshots.toString())
+                    .putBoolean(FIXED_MIGRATED,true).apply();
+        } catch(Exception ignored) {
+            c.getSharedPreferences(PREFS,0).edit().putBoolean(FIXED_MIGRATED,true).apply();
+        }
+    }
+
+    private static List<FixedExpense> legacyFixedItems(JSONObject p) {
+        List<FixedExpense> out=new ArrayList<>();
+        addLegacy(out,p,"electricityGas","电费・煤气费","个人");
+        addLegacy(out,p,"water","水费","个人");
+        addLegacy(out,p,"rent","房租","个人");
+        addLegacy(out,p,"gym","健身房","个人");
+        addLegacy(out,p,"creditCard","信用卡还款","个人");
+        addLegacy(out,p,"insurance","保险","个人");
+        addLegacy(out,p,"otherFixed","其他个人固定支出","个人");
+        addLegacy(out,p,"sharedExpense","公用钱包固定支出","公用");
+        return out;
+    }
+
+    private static void addLegacy(List<FixedExpense> out,JSONObject p,String key,String name,String wallet) {
+        long amount=p.optLong(key,0);
+        if(amount>0) out.add(new FixedExpense("legacy:"+key,name,amount,wallet));
+    }
+
     public static synchronized void recordNotification(Context c, String pkg, String title, String detail,
-                                                        long amount, boolean candidate, boolean imported,
-                                                        String reason, long postTime) {
+                                                         long amount, boolean candidate, boolean imported,
+                                                         String reason, long postTime) {
         try {
             JSONArray old = diagnostics(c);
             JSONArray out = new JSONArray();
@@ -151,6 +270,7 @@ public final class LedgerStore {
 
     public static synchronized void clearAll(Context c) {
         c.getSharedPreferences(PREFS,0).edit().remove(TX).remove(PLANS).remove(LEGACY_PLAN)
+                .remove(FIXED_SNAPSHOTS).remove(FIXED_MIGRATED)
                 .remove(DIAGNOSTICS).remove(LISTENER_STATE).apply();
     }
 
