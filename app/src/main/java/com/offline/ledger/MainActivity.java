@@ -288,7 +288,7 @@ public class MainActivity extends Activity {
 
         Button access=button("打开通知使用权设置"); access.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))); content.addView(access);
         Button rebind=button("重新连接通知监听服务"); rebind.setOnClickListener(v->{
-            NotificationListenerService.requestRebind(new ComponentName(this,WalletNotificationListener.class));
+            NotificationListenerService.requestRebind(new ComponentName(this,WalletNotificationListenerV2.class));
             Toast.makeText(this,"已请求重新连接；几秒后返回此页面查看状态",Toast.LENGTH_LONG).show();
         }); content.addView(rebind);
 
