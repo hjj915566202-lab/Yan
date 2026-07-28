@@ -10,6 +10,15 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - '.github/workflows/build-nutrition-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - '.github/workflows/build-nutrition-apk.yml'
   workflow_dispatch:
 
 permissions:
