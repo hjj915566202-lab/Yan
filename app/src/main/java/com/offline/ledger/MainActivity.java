@@ -41,7 +41,7 @@ public class MainActivity extends NutritionFoodActivity {
             }
             public void onNothingSelected(AdapterView<?> p) {}
         });
-        Button save=button("\u4fdf\u5b58\u5230\u98df\u7269\u5e93");
+        Button save=button("\u4fdd\u5b58\u5230\u98df\u7269\u5e93");
         save.setOnClickListener(v->{
             String n=name.getText().toString().trim();
             if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u98df\u54c1\u540d\u79f0\u548c\u70ed\u91cf",Toast.LENGTH_SHORT).show();return;}
@@ -88,7 +88,7 @@ public class MainActivity extends NutritionFoodActivity {
         EditText fiber=goalInput("\u81b3\u98df\u7ea4\u7ef4 g",goal.fiber),sodium=goalInput("\u94a0 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
         Runnable preview=()->updatePlanPreview(kcal,pp,fp,cp,status,calculated);
         for(EditText e:new EditText[]{kcal,pp,fp,cp})e.addTextChangedListener(new SimpleWatcher(preview)); preview.run();
-        Button save=button("\u4fdf\u5b58\u8ba1\u5212"); save.setOnClickListener(v->{
+        Button save=button("\u4fdd\u5b58\u8ba1\u5212"); save.setOnClickListener(v->{
             double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp);
             if(energy<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u5927\u4e8e0\u7684\u70ed\u91cf\u4e0a\u9650",Toast.LENGTH_SHORT).show();return;}
             if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"\u86cb\u767d\u8d28\u3001\u8102\u80aa\u3001\u78b3\u6c34\u6bd4\u4f8b\u5408\u8ba1\u5fc5\u987b\u4e3a100%",Toast.LENGTH_LONG).show();return;}
