@@ -21,6 +21,7 @@ public final class NutritionData {
         public static final String BASIS_SERVING = "serving";
 
         public String id, name, brand, category, basis;
+        /** Nutrients are stored exactly for the selected basis: per 100g, per 100ml, or per 1 serving. */
         public double kcal, protein, fat, carb, fiber, sodium, servingSize;
 
         public Food(String id, String name, String brand, String category,
@@ -57,6 +58,8 @@ public final class NutritionData {
         public String amountUnit() { return isPerServing() ? "份" : (isPerMilliliter() ? "ml" : "g"); }
         public double defaultAmount() { return isPerServing() ? 1d : 100d; }
         public double ratio(double amount) { return isPerServing() ? amount : amount / 100d; }
+        public String basisLabel() { return isPerServing() ? "每1份" : (isPerMilliliter() ? "每100毫升" : "每100克"); }
+        public String basisSuffix() { return isPerServing() ? "/份" : (isPerMilliliter() ? "/100ml" : "/100g"); }
 
         JSONObject toJson() {
             JSONObject o = new JSONObject();
@@ -73,6 +76,7 @@ public final class NutritionData {
                 o.put("sodium", sodium);
                 o.put("basis", basis);
                 o.put("servingSize", servingSize);
+                o.put("schemaVersion", 2);
             } catch (Exception ignored) {}
             return o;
         }
@@ -131,7 +135,22 @@ public final class NutritionData {
     }
 
     public static final class Goal {
-        public double kcal = 2000, protein = 80, fat = 60, carb = 250, fiber = 25, sodium = 2000;
+        public double kcal = 2000;
+        public double proteinPercent = 20;
+        public double fatPercent = 30;
+        public double carbPercent = 50;
+        public double protein, fat, carb;
+        public double fiber = 25, sodium = 2000;
+
+        public Goal() { recalculateMacros(); }
+
+        public void recalculateMacros() {
+            protein = kcal * proteinPercent / 100d / 4d;
+            fat = kcal * fatPercent / 100d / 9d;
+            carb = kcal * carbPercent / 100d / 4d;
+        }
+
+        public double ratioTotal() { return proteinPercent + fatPercent + carbPercent; }
     }
 
     private static SharedPreferences prefs(Context c) {
@@ -173,24 +192,42 @@ public final class NutritionData {
         try {
             JSONObject o = new JSONObject(prefs(c).getString(KEY_GOAL, "{}"));
             g.kcal = o.optDouble("kcal", g.kcal);
-            g.protein = o.optDouble("protein", g.protein);
-            g.fat = o.optDouble("fat", g.fat);
-            g.carb = o.optDouble("carb", g.carb);
+            if (o.has("proteinPercent") && o.has("fatPercent") && o.has("carbPercent")) {
+                g.proteinPercent = o.optDouble("proteinPercent", g.proteinPercent);
+                g.fatPercent = o.optDouble("fatPercent", g.fatPercent);
+                g.carbPercent = o.optDouble("carbPercent", g.carbPercent);
+            } else if (o.has("protein") || o.has("fat") || o.has("carb")) {
+                double pEnergy = o.optDouble("protein", 0) * 4d;
+                double fEnergy = o.optDouble("fat", 0) * 9d;
+                double cEnergy = o.optDouble("carb", 0) * 4d;
+                double total = pEnergy + fEnergy + cEnergy;
+                if (total > 0) {
+                    g.proteinPercent = pEnergy / total * 100d;
+                    g.fatPercent = fEnergy / total * 100d;
+                    g.carbPercent = cEnergy / total * 100d;
+                }
+            }
             g.fiber = o.optDouble("fiber", g.fiber);
             g.sodium = o.optDouble("sodium", g.sodium);
+            g.recalculateMacros();
         } catch (Exception ignored) {}
         return g;
     }
 
     public static void saveGoal(Context c, Goal g) {
+        g.recalculateMacros();
         JSONObject o = new JSONObject();
         try {
             o.put("kcal", g.kcal);
+            o.put("proteinPercent", g.proteinPercent);
+            o.put("fatPercent", g.fatPercent);
+            o.put("carbPercent", g.carbPercent);
             o.put("protein", g.protein);
             o.put("fat", g.fat);
             o.put("carb", g.carb);
             o.put("fiber", g.fiber);
             o.put("sodium", g.sodium);
+            o.put("schemaVersion", 2);
         } catch (Exception ignored) {}
         prefs(c).edit().putString(KEY_GOAL, o.toString()).apply();
     }

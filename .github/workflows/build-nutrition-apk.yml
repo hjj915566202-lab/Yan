@@ -9,6 +9,7 @@ on:
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
+      - 'nutrition-ledger.jks.b64'
       - '.github/workflows/build-nutrition-apk.yml'
   pull_request:
     branches:
@@ -18,6 +19,7 @@ on:
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
+      - 'nutrition-ledger.jks.b64'
       - '.github/workflows/build-nutrition-apk.yml'
   workflow_dispatch:
 
@@ -48,16 +50,21 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Restore stable signing key
+        run: base64 --decode nutrition-ledger.jks.b64 > nutrition-ledger.jks
+
       - name: Build signed debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Verify APK
-        run: test -f app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify APK and signature
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NutritionLedger-v2.1.0
+          name: NutritionLedger-v2.2.0
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

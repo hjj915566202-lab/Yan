@@ -10,12 +10,25 @@ android {
         applicationId 'com.hjj.nutritionledger'
         minSdk 26
         targetSdk 35
-        versionCode 6
-        versionName '2.1.0'
+        versionCode 7
+        versionName '2.2.0'
+    }
+
+    signingConfigs {
+        stable {
+            storeFile rootProject.file('nutrition-ledger.jks')
+            storePassword 'nutrition123'
+            keyAlias 'nutritionledger'
+            keyPassword 'nutrition123'
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.stable
+        }
         release {
+            signingConfig signingConfigs.stable
             minifyEnabled false
             shrinkResources false
         }
