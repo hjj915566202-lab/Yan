@@ -33,6 +33,10 @@ public final class FoodCatalog {
         return sourceNotice;
     }
 
+    private static double n(JSONObject o, String key) {
+        return NutritionData.safeNumber(o.optDouble(key, 0d));
+    }
+
     private static List<NutritionData.Food> loadAsset(Context context) {
         List<NutritionData.Food> foods = new ArrayList<>();
         try (InputStream input = context.getAssets().open("china_food_composition.json")) {
@@ -50,34 +54,23 @@ public final class FoodCatalog {
                     NutritionData.Food f = new NutritionData.Food(
                             o.optString("id"), o.optString("name"), "",
                             o.optString("category", "\u5176\u4ed6\u7c7b"),
-                            o.optDouble("kcal"), o.optDouble("protein"),
-                            o.optDouble("fat"), o.optDouble("carb"),
-                            o.optDouble("fiber"), o.optDouble("sodium"));
+                            n(o, "kcal"), n(o, "protein"), n(o, "fat"), n(o, "carb"),
+                            n(o, "fiber"), n(o, "sodium"));
                     f.subCategory = o.optString("subCategory");
                     f.source = SOURCE_REPOSITORY;
                     f.sourceCode = o.optString("sourceCode");
                     f.remark = o.optString("remark");
-                    f.edible = o.optDouble("edible");
-                    f.water = o.optDouble("water");
-                    f.cholesterol = o.optDouble("cholesterol");
-                    f.ash = o.optDouble("ash");
-                    f.vitaminA = o.optDouble("vitaminA");
-                    f.carotene = o.optDouble("carotene");
-                    f.retinol = o.optDouble("retinol");
-                    f.thiamin = o.optDouble("thiamin");
-                    f.riboflavin = o.optDouble("riboflavin");
-                    f.niacin = o.optDouble("niacin");
-                    f.vitaminC = o.optDouble("vitaminC");
-                    f.vitaminE = o.optDouble("vitaminE");
-                    f.calcium = o.optDouble("calcium");
-                    f.phosphorus = o.optDouble("phosphorus");
-                    f.potassium = o.optDouble("potassium");
-                    f.magnesium = o.optDouble("magnesium");
-                    f.iron = o.optDouble("iron");
-                    f.zinc = o.optDouble("zinc");
-                    f.selenium = o.optDouble("selenium");
-                    f.copper = o.optDouble("copper");
-                    f.manganese = o.optDouble("manganese");
+                    f.edible = n(o, "edible"); f.water = n(o, "water");
+                    f.cholesterol = n(o, "cholesterol"); f.ash = n(o, "ash");
+                    f.vitaminA = n(o, "vitaminA"); f.carotene = n(o, "carotene");
+                    f.retinol = n(o, "retinol"); f.thiamin = n(o, "thiamin");
+                    f.riboflavin = n(o, "riboflavin"); f.niacin = n(o, "niacin");
+                    f.vitaminC = n(o, "vitaminC"); f.vitaminE = n(o, "vitaminE");
+                    f.calcium = n(o, "calcium"); f.phosphorus = n(o, "phosphorus");
+                    f.potassium = n(o, "potassium"); f.magnesium = n(o, "magnesium");
+                    f.iron = n(o, "iron"); f.zinc = n(o, "zinc");
+                    f.selenium = n(o, "selenium"); f.copper = n(o, "copper");
+                    f.manganese = n(o, "manganese");
                     if (!f.name.isEmpty()) foods.add(f);
                 }
             }
