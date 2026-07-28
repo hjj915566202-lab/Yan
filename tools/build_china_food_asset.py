@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -14,16 +15,20 @@ SOURCE_COMMIT = "095034a96376d893582b412900fa8fdf792b4194"
 TRACE_VALUES = {"", "-", "--", "—", "…", "tr", "trace", "微量", "未检出", "nd", "n.d."}
 
 
+def finite(value: float) -> float:
+    return value if math.isfinite(value) else 0.0
+
+
 def number(value: object) -> float:
     if value is None:
         return 0.0
     if isinstance(value, (int, float)):
-        return float(value)
+        return finite(float(value))
     text = str(value).strip().lower().replace(",", "")
     if text in TRACE_VALUES:
         return 0.0
     match = re.search(r"-?\d+(?:\.\d+)?", text)
-    return float(match.group()) if match else 0.0
+    return finite(float(match.group())) if match else 0.0
 
 
 def clean_text(value: object) -> str:
@@ -58,7 +63,7 @@ def convert_row(row: dict, major: str, sub: str) -> dict | None:
     kcal = number(row.get("energyKCal"))
     kj = number(row.get("energyKJ"))
     if kcal <= 0 < kj:
-        kcal = kj / 4.184
+        kcal = finite(kj / 4.184)
 
     protein = number(row.get("protein"))
     fat = number(row.get("fat"))
@@ -147,7 +152,7 @@ def main() -> int:
     payload = {
         "sourceRepository": SOURCE_REPO,
         "sourceCommit": SOURCE_COMMIT,
-        "sourceNotice": "数据由公开GitHub仓库根据《中国食物成分表标准版（第6版）》截图经视觉模型/OCR整理；非官方授权数据，识别准确性不作保证。原始Tr、空值和无法解析值在本软件中按0处理。",
+        "sourceNotice": "数据由公开GitHub仓库根据《中国食物成分表标准版（第6版）》截图经视觉模型/OCR整理；非官方授权数据，识别准确性不作保证。原始Tr、空值、NaN和无法解析值在本软件中按0处理。",
         "count": len(foods),
         "rejectedRows": rejected,
         "foods": foods,
@@ -155,7 +160,7 @@ def main() -> int:
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+        json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
     print(f"generated {len(foods)} foods; rejected {rejected}; output={output}")
     if len(foods) < 1600:
