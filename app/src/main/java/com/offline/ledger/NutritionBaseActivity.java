@@ -24,10 +24,16 @@ public abstract class NutritionBaseActivity extends Activity {
     protected String screen = "\u4eca\u65e5";
     protected List<NutritionData.Entry> entries;
     protected List<NutritionData.Food> customFoods;
+    protected List<NutritionData.Food> builtInFoods;
     protected NutritionData.Goal goal;
 
     @Override public void onCreate(Bundle state){super.onCreate(state);reload();buildShell();}
-    protected void reload(){entries=NutritionData.loadEntries(this);customFoods=NutritionData.loadCustomFoods(this);goal=NutritionData.loadGoal(this);}
+    protected void reload(){
+        entries=NutritionData.loadEntries(this);
+        customFoods=NutritionData.loadCustomFoods(this);
+        builtInFoods=FoodCatalog.commonFoods(this);
+        goal=NutritionData.loadGoal(this);
+    }
     protected int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
     protected TextView text(String s,int sp,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(TEXT);v.setPadding(dp(8),dp(7),dp(8),dp(7));if(bold)v.setTypeface(null,1);return v;}
     protected TextView muted(String s){TextView v=text(s,12,false);v.setTextColor(MUTED);return v;}
@@ -38,7 +44,7 @@ public abstract class NutritionBaseActivity extends Activity {
     protected double parse(EditText e){try{return Double.parseDouble(e.getText().toString().trim());}catch(Exception x){return 0;}}
     protected double valueOr(EditText e,double fallback){double v=parse(e);return v>0?v:fallback;}
     protected String one(double n){return String.format(Locale.US,n==Math.rint(n)?"%.0f":"%.1f",n);}
-    protected List<NutritionData.Food> allFoods(){List<NutritionData.Food>a=new ArrayList<>();a.addAll(customFoods);a.addAll(FoodCatalog.commonFoods());return a;}
+    protected List<NutritionData.Food> allFoods(){List<NutritionData.Food>a=new ArrayList<>(customFoods.size()+builtInFoods.size());a.addAll(customFoods);a.addAll(builtInFoods);return a;}
 
     private void buildShell(){
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);
