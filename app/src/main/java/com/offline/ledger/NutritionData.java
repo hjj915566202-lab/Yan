@@ -20,9 +20,12 @@ public final class NutritionData {
         public static final String BASIS_100ML = "100ml";
         public static final String BASIS_SERVING = "serving";
 
-        public String id, name, brand, category, basis;
-        /** Nutrients are stored exactly for the selected basis: per 100g, per 100ml, or per 1 serving. */
+        public String id, name, brand, category, subCategory = "", basis;
+        public String source = "", sourceCode = "", remark = "";
         public double kcal, protein, fat, carb, fiber, sodium, servingSize;
+        public double edible, water, cholesterol, ash;
+        public double vitaminA, carotene, retinol, thiamin, riboflavin, niacin, vitaminC, vitaminE;
+        public double calcium, phosphorus, potassium, magnesium, iron, zinc, selenium, copper, manganese;
 
         public Food(String id, String name, String brand, String category,
                     double kcal, double protein, double fat, double carb,
@@ -55,28 +58,27 @@ public final class NutritionData {
 
         public boolean isPerServing() { return BASIS_SERVING.equals(basis); }
         public boolean isPerMilliliter() { return BASIS_100ML.equals(basis); }
-        public String amountUnit() { return isPerServing() ? "份" : (isPerMilliliter() ? "ml" : "g"); }
+        public boolean hasExtendedNutrients() {
+            return !source.isEmpty() || cholesterol != 0 || calcium != 0 || iron != 0
+                    || potassium != 0 || magnesium != 0 || vitaminA != 0 || vitaminC != 0;
+        }
+        public String amountUnit() { return isPerServing() ? "\u4efd" : (isPerMilliliter() ? "ml" : "g"); }
         public double defaultAmount() { return isPerServing() ? 1d : 100d; }
         public double ratio(double amount) { return isPerServing() ? amount : amount / 100d; }
-        public String basisLabel() { return isPerServing() ? "每1份" : (isPerMilliliter() ? "每100毫升" : "每100克"); }
-        public String basisSuffix() { return isPerServing() ? "/份" : (isPerMilliliter() ? "/100ml" : "/100g"); }
+        public String basisLabel() { return isPerServing() ? "\u6bcf1\u4efd" : (isPerMilliliter() ? "\u6bcf100\u6beb\u5347" : "\u6bcf100\u514b"); }
+        public String basisSuffix() { return isPerServing() ? "/\u4efd" : (isPerMilliliter() ? "/100ml" : "/100g"); }
 
         JSONObject toJson() {
             JSONObject o = new JSONObject();
             try {
-                o.put("id", id);
-                o.put("name", name);
-                o.put("brand", brand);
-                o.put("category", category);
-                o.put("kcal", kcal);
-                o.put("protein", protein);
-                o.put("fat", fat);
-                o.put("carb", carb);
-                o.put("fiber", fiber);
-                o.put("sodium", sodium);
-                o.put("basis", basis);
-                o.put("servingSize", servingSize);
-                o.put("schemaVersion", 2);
+                o.put("id", id); o.put("name", name); o.put("brand", brand);
+                o.put("category", category); o.put("subCategory", subCategory);
+                o.put("source", source); o.put("sourceCode", sourceCode); o.put("remark", remark);
+                o.put("kcal", kcal); o.put("protein", protein); o.put("fat", fat);
+                o.put("carb", carb); o.put("fiber", fiber); o.put("sodium", sodium);
+                o.put("basis", basis); o.put("servingSize", servingSize);
+                putFoodExtended(o, this);
+                o.put("schemaVersion", 3);
             } catch (Exception ignored) {}
             return o;
         }
@@ -84,106 +86,138 @@ public final class NutritionData {
         static Food fromJson(JSONObject o) {
             String basis = normalizeBasis(o.optString("basis", BASIS_100G));
             double defaultSize = BASIS_SERVING.equals(basis) ? 0d : 100d;
-            return new Food(o.optString("id"), o.optString("name"), o.optString("brand"),
-                    o.optString("category", "我的食品"), o.optDouble("kcal"),
+            Food f = new Food(o.optString("id"), o.optString("name"), o.optString("brand"),
+                    o.optString("category", "\u6211\u7684\u98df\u54c1"), o.optDouble("kcal"),
                     o.optDouble("protein"), o.optDouble("fat"), o.optDouble("carb"),
                     o.optDouble("fiber"), o.optDouble("sodium"), basis,
                     o.optDouble("servingSize", defaultSize));
+            f.subCategory = o.optString("subCategory");
+            f.source = o.optString("source");
+            f.sourceCode = o.optString("sourceCode");
+            f.remark = o.optString("remark");
+            readFoodExtended(o, f);
+            return f;
         }
     }
 
     public static final class Entry {
-        public String id, date, meal, name, amountUnit = "g";
+        public String id, date, meal, name, amountUnit = "g", source = "";
         public double amount, kcal, protein, fat, carb, fiber, sodium;
+        public double cholesterol, vitaminA, thiamin, riboflavin, niacin, vitaminC, vitaminE;
+        public double calcium, phosphorus, potassium, magnesium, iron, zinc, selenium, copper, manganese;
+
+        public void applyFood(Food f, double ratio) {
+            kcal = f.kcal * ratio; protein = f.protein * ratio; fat = f.fat * ratio;
+            carb = f.carb * ratio; fiber = f.fiber * ratio; sodium = f.sodium * ratio;
+            cholesterol = f.cholesterol * ratio; vitaminA = f.vitaminA * ratio;
+            thiamin = f.thiamin * ratio; riboflavin = f.riboflavin * ratio;
+            niacin = f.niacin * ratio; vitaminC = f.vitaminC * ratio; vitaminE = f.vitaminE * ratio;
+            calcium = f.calcium * ratio; phosphorus = f.phosphorus * ratio;
+            potassium = f.potassium * ratio; magnesium = f.magnesium * ratio;
+            iron = f.iron * ratio; zinc = f.zinc * ratio; selenium = f.selenium * ratio;
+            copper = f.copper * ratio; manganese = f.manganese * ratio;
+            source = f.source;
+        }
 
         JSONObject toJson() {
             JSONObject o = new JSONObject();
             try {
-                o.put("id", id);
-                o.put("date", date);
-                o.put("meal", meal);
-                o.put("name", name);
-                o.put("amount", amount);
-                o.put("amountUnit", amountUnit);
-                o.put("kcal", kcal);
-                o.put("protein", protein);
-                o.put("fat", fat);
-                o.put("carb", carb);
-                o.put("fiber", fiber);
-                o.put("sodium", sodium);
+                o.put("id", id); o.put("date", date); o.put("meal", meal); o.put("name", name);
+                o.put("amount", amount); o.put("amountUnit", amountUnit); o.put("source", source);
+                o.put("kcal", kcal); o.put("protein", protein); o.put("fat", fat);
+                o.put("carb", carb); o.put("fiber", fiber); o.put("sodium", sodium);
+                o.put("cholesterol", cholesterol); o.put("vitaminA", vitaminA);
+                o.put("thiamin", thiamin); o.put("riboflavin", riboflavin); o.put("niacin", niacin);
+                o.put("vitaminC", vitaminC); o.put("vitaminE", vitaminE);
+                o.put("calcium", calcium); o.put("phosphorus", phosphorus); o.put("potassium", potassium);
+                o.put("magnesium", magnesium); o.put("iron", iron); o.put("zinc", zinc);
+                o.put("selenium", selenium); o.put("copper", copper); o.put("manganese", manganese);
+                o.put("schemaVersion", 3);
             } catch (Exception ignored) {}
             return o;
         }
 
         static Entry fromJson(JSONObject o) {
             Entry e = new Entry();
-            e.id = o.optString("id");
-            e.date = o.optString("date");
-            e.meal = o.optString("meal");
-            e.name = o.optString("name");
-            e.amount = o.optDouble("amount");
-            e.amountUnit = o.optString("amountUnit", "g");
-            if (e.amountUnit.isEmpty()) e.amountUnit = "g";
-            e.kcal = o.optDouble("kcal");
-            e.protein = o.optDouble("protein");
-            e.fat = o.optDouble("fat");
-            e.carb = o.optDouble("carb");
-            e.fiber = o.optDouble("fiber");
-            e.sodium = o.optDouble("sodium");
+            e.id = o.optString("id"); e.date = o.optString("date"); e.meal = o.optString("meal");
+            e.name = o.optString("name"); e.amount = o.optDouble("amount");
+            e.amountUnit = o.optString("amountUnit", "g"); if (e.amountUnit.isEmpty()) e.amountUnit = "g";
+            e.source = o.optString("source");
+            e.kcal = o.optDouble("kcal"); e.protein = o.optDouble("protein");
+            e.fat = o.optDouble("fat"); e.carb = o.optDouble("carb");
+            e.fiber = o.optDouble("fiber"); e.sodium = o.optDouble("sodium");
+            e.cholesterol = o.optDouble("cholesterol"); e.vitaminA = o.optDouble("vitaminA");
+            e.thiamin = o.optDouble("thiamin"); e.riboflavin = o.optDouble("riboflavin");
+            e.niacin = o.optDouble("niacin"); e.vitaminC = o.optDouble("vitaminC");
+            e.vitaminE = o.optDouble("vitaminE"); e.calcium = o.optDouble("calcium");
+            e.phosphorus = o.optDouble("phosphorus"); e.potassium = o.optDouble("potassium");
+            e.magnesium = o.optDouble("magnesium"); e.iron = o.optDouble("iron");
+            e.zinc = o.optDouble("zinc"); e.selenium = o.optDouble("selenium");
+            e.copper = o.optDouble("copper"); e.manganese = o.optDouble("manganese");
             return e;
         }
     }
 
     public static final class Goal {
         public double kcal = 2000;
-        public double proteinPercent = 20;
-        public double fatPercent = 30;
-        public double carbPercent = 50;
+        public double proteinPercent = 20, fatPercent = 30, carbPercent = 50;
         public double protein, fat, carb;
         public double fiber = 25, sodium = 2000;
-
         public Goal() { recalculateMacros(); }
-
         public void recalculateMacros() {
             protein = kcal * proteinPercent / 100d / 4d;
             fat = kcal * fatPercent / 100d / 9d;
             carb = kcal * carbPercent / 100d / 4d;
         }
-
         public double ratioTotal() { return proteinPercent + fatPercent + carbPercent; }
     }
 
-    private static SharedPreferences prefs(Context c) {
-        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    private static void putFoodExtended(JSONObject o, Food f) throws Exception {
+        o.put("edible", f.edible); o.put("water", f.water); o.put("cholesterol", f.cholesterol); o.put("ash", f.ash);
+        o.put("vitaminA", f.vitaminA); o.put("carotene", f.carotene); o.put("retinol", f.retinol);
+        o.put("thiamin", f.thiamin); o.put("riboflavin", f.riboflavin); o.put("niacin", f.niacin);
+        o.put("vitaminC", f.vitaminC); o.put("vitaminE", f.vitaminE);
+        o.put("calcium", f.calcium); o.put("phosphorus", f.phosphorus); o.put("potassium", f.potassium);
+        o.put("magnesium", f.magnesium); o.put("iron", f.iron); o.put("zinc", f.zinc);
+        o.put("selenium", f.selenium); o.put("copper", f.copper); o.put("manganese", f.manganese);
     }
+
+    private static void readFoodExtended(JSONObject o, Food f) {
+        f.edible = o.optDouble("edible"); f.water = o.optDouble("water");
+        f.cholesterol = o.optDouble("cholesterol"); f.ash = o.optDouble("ash");
+        f.vitaminA = o.optDouble("vitaminA"); f.carotene = o.optDouble("carotene");
+        f.retinol = o.optDouble("retinol"); f.thiamin = o.optDouble("thiamin");
+        f.riboflavin = o.optDouble("riboflavin"); f.niacin = o.optDouble("niacin");
+        f.vitaminC = o.optDouble("vitaminC"); f.vitaminE = o.optDouble("vitaminE");
+        f.calcium = o.optDouble("calcium"); f.phosphorus = o.optDouble("phosphorus");
+        f.potassium = o.optDouble("potassium"); f.magnesium = o.optDouble("magnesium");
+        f.iron = o.optDouble("iron"); f.zinc = o.optDouble("zinc");
+        f.selenium = o.optDouble("selenium"); f.copper = o.optDouble("copper");
+        f.manganese = o.optDouble("manganese");
+    }
+
+    private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
 
     public static List<Entry> loadEntries(Context c) {
         List<Entry> out = new ArrayList<>();
-        try {
-            JSONArray a = new JSONArray(prefs(c).getString(KEY_LOGS, "[]"));
+        try { JSONArray a = new JSONArray(prefs(c).getString(KEY_LOGS, "[]"));
             for (int i = 0; i < a.length(); i++) out.add(Entry.fromJson(a.getJSONObject(i)));
         } catch (Exception ignored) {}
         return out;
     }
-
     public static void saveEntries(Context c, List<Entry> entries) {
-        JSONArray a = new JSONArray();
-        for (Entry e : entries) a.put(e.toJson());
+        JSONArray a = new JSONArray(); for (Entry e : entries) a.put(e.toJson());
         prefs(c).edit().putString(KEY_LOGS, a.toString()).apply();
     }
-
     public static List<Food> loadCustomFoods(Context c) {
         List<Food> out = new ArrayList<>();
-        try {
-            JSONArray a = new JSONArray(prefs(c).getString(KEY_CUSTOM, "[]"));
+        try { JSONArray a = new JSONArray(prefs(c).getString(KEY_CUSTOM, "[]"));
             for (int i = 0; i < a.length(); i++) out.add(Food.fromJson(a.getJSONObject(i)));
         } catch (Exception ignored) {}
         return out;
     }
-
     public static void saveCustomFoods(Context c, List<Food> foods) {
-        JSONArray a = new JSONArray();
-        for (Food f : foods) a.put(f.toJson());
+        JSONArray a = new JSONArray(); for (Food f : foods) a.put(f.toJson());
         prefs(c).edit().putString(KEY_CUSTOM, a.toString()).apply();
     }
 
@@ -207,32 +241,22 @@ public final class NutritionData {
                     g.carbPercent = cEnergy / total * 100d;
                 }
             }
-            g.fiber = o.optDouble("fiber", g.fiber);
-            g.sodium = o.optDouble("sodium", g.sodium);
+            g.fiber = o.optDouble("fiber", g.fiber); g.sodium = o.optDouble("sodium", g.sodium);
             g.recalculateMacros();
         } catch (Exception ignored) {}
         return g;
     }
 
     public static void saveGoal(Context c, Goal g) {
-        g.recalculateMacros();
-        JSONObject o = new JSONObject();
+        g.recalculateMacros(); JSONObject o = new JSONObject();
         try {
-            o.put("kcal", g.kcal);
-            o.put("proteinPercent", g.proteinPercent);
-            o.put("fatPercent", g.fatPercent);
-            o.put("carbPercent", g.carbPercent);
-            o.put("protein", g.protein);
-            o.put("fat", g.fat);
-            o.put("carb", g.carb);
-            o.put("fiber", g.fiber);
-            o.put("sodium", g.sodium);
-            o.put("schemaVersion", 2);
+            o.put("kcal", g.kcal); o.put("proteinPercent", g.proteinPercent);
+            o.put("fatPercent", g.fatPercent); o.put("carbPercent", g.carbPercent);
+            o.put("protein", g.protein); o.put("fat", g.fat); o.put("carb", g.carb);
+            o.put("fiber", g.fiber); o.put("sodium", g.sodium); o.put("schemaVersion", 3);
         } catch (Exception ignored) {}
         prefs(c).edit().putString(KEY_GOAL, o.toString()).apply();
     }
 
-    public static void clear(Context c) {
-        prefs(c).edit().clear().apply();
-    }
+    public static void clear(Context c) { prefs(c).edit().clear().apply(); }
 }
