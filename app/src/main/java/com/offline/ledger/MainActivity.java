@@ -15,122 +15,104 @@ import java.util.ArrayList;
 
 public class MainActivity extends NutritionFoodActivity {
     @Override protected void showCustomFoodScreen() {
-        content.addView(text("æ·»åŠ åŒ…è£…é£Ÿå“", 21, true));
-
+        content.addView(text("\u6dfb\u52a0\u5305\u88c5\u98df\u54c1", 21, true));
         LinearLayout form = box();
-        EditText name = input("é£Ÿå“åç§°", false);
-        EditText brand = input("å“ç‰Œï¼ˆå¯é€‰ï¼‰", false);
-        Spinner basis = spinner(new String[]{"æ¯100å…‹", "æ¯100æ¯«å‡", "æ¯1ä»½ï¼ˆ1è¢‹/1ç›’/1ä¸ªï¼‰"}, "æ¯100å…‹");
-        EditText serving = input("ä¸€ä»½çº¦å¤šå°‘å…‹/æ¯«å‡ï¼ˆå¯é€‰ï¼‰", true);
-        TextView basisHint = muted("ä¸‹é¢å¡«å†™çš„æ˜¯æ¯100å…‹çš„è¥å…»å€¼ã€‚");
-
-        EditText kcal = input("çƒ­é‡ kcal", true);
-        EditText protein = input("è›‹ç™½è´¨ g", true);
-        EditText fat = input("è„‚è‚ª g", true);
-        EditText carb = input("ç¢³æ°´ g", true);
-        EditText fiber = input("è†³é£Ÿçº¤ç»´ g", true);
-        EditText sodium = input("é’  mg", true);
-
-        form.addView(name);
-        form.addView(brand);
-        form.addView(text("è¥å…»æ ‡ç­¾çš„è®¡é‡åŸºå‡†", 13, true));
-        form.addView(basis);
-        form.addView(basisHint);
-        form.addView(serving);
-        serving.setVisibility(View.GONE);
-        form.addView(kcal);
-        form.addView(protein);
-        form.addView(fat);
-        form.addView(carb);
-        form.addView(fiber);
-        form.addView(sodium);
-
+        EditText name = input("\u98df\u54c1\u540d\u79f0", false);
+        EditText brand = input("\u54c1\u724c\uff08\u53ef\u9009\uff09", false);
+        Spinner basis = spinner(new String[]{"\u6bcf100\u514b", "\u6bcf100\u6beb\u5347", "\u6bcf1\u4efd\uff081\u888b/1\u76d2/1\u4e2a\uff09"}, "\u6bcf100\u514b");
+        TextView hint = muted("\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u514b\u7684\u8425\u517b\u503c\u3002");
+        EditText serving = input("\u4e00\u4efd\u7ea6\u591a\u5c11\u514b/\u6beb\u5347\uff08\u53ef\u9009\uff09", true);
+        EditText kcal = input("\u70ed\u91cf kcal", true);
+        EditText protein = input("\u86cb\u767d\u8d28 g", true);
+        EditText fat = input("\u8102\u80aa g", true);
+        EditText carb = input("\u78b3\u6c34 g", true);
+        EditText fiber = input("\u81b3\u98df\u7ea4\u7ef4 g", true);
+        EditText sodium = input("\u94a0 mg", true);
+        form.addView(name); form.addView(brand); form.addView(text("\u8425\u517b\u6807\u7b7e\u7684\u8ba1\u91cf\u57fa\u51c6",13,true));
+        form.addView(basis); form.addView(hint); form.addView(serving); serving.setVisibility(View.GONE);
+        for (View x : new View[]{kcal,protein,fat,carb,fiber,sodium}) form.addView(x);
         basis.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String selected = String.valueOf(parent.getItemAtPosition(position));
-                boolean perServing = selected.startsWith("æ¯1ä»½");
-                serving.setVisibility(perServing ? View.VISIBLE : View.GONE);
-                if (perServing) {
-                    basisHint.setText("ä¸‹é¢å¡«å†™çš„æ˜¯1æ•´ä»½çš„å…¨éƒ¨è¥å…»å€¼ã€‚ä¿å­˜åä¸ä¼šæ¢ç®—ï¼Œä¹Ÿä¸ä¼šÃ—100ã€‚");
-                } else if (selected.contains("æ¯«å‡")) {
-                    basisHint.setText("ä¸‹é¢å¡«å†™çš„æ˜¯æ¯100æ¯«å‡çš„è¥å…»å€¼ã€‚");
-                } else {
-                    basisHint.setText("ä¸‹é¢å¡«å†™çš„æ˜¯æ¯100å…‹çš„è¥å…»å€¼ã€‚");
-                }
+            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                String selected=String.valueOf(p.getItemAtPosition(pos));
+                boolean perServing=selected.startsWith("\u6bcf1\u4efd");
+                serving.setVisibility(perServing?View.VISIBLE:View.GONE);
+                hint.setText(perServing?"\u4e0b\u9762\u586b\u5199\u7684\u662f1\u6574\u4efd\u7684\u5168\u90e8\u8425\u517b\u503c\u3002\u4fdd\u5b58\u540e\u4e0d\u4f1a\u6362\u7b97\uff0c\u4e5f\u4e0d\u4f1a\u00d7100\u3002":
+                        (selected.contains("\u6beb\u5347")?"\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u6beb\u5347\u7684\u8425\u517b\u503c\u3002":"\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u514b\u7684\u8425\u517b\u503c\u3002"));
             }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> p) {}
         });
-
-        Button save = button("ä¿å­˜åˆ°á£Ÿç‰©åº“");
-        save.setOnClickListener(v -> {
-            String foodName = name.getText().toString().trim();
-            if (foodName.isEmpty() || parse(kcal) <= 0) {
-                Toast.makeText(this, "è¯·å¡«å†™é£Ÿå“åç§°å’Œçƒ­é‡", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String selected = String.valueOf(basis.getSelectedItem());
-            String basisCode;
-            if (selected.startsWith("æ¯1ä»½")) {
-                basisCode = NutritionData.Food.BASIS_SERVING;
-            } else if (selected.contains("æ¯«å‡")) {
-                basisCode = NutritionData.Food.BASIS_100ML;
-            } else {
-                basisCode = NutritionData.Food.BASIS_100G;
-            }
-
-            NutritionData.Food food = new NutritionData.Food(
-                    "c" + System.currentTimeMillis(),
-                    foodName,
-                    brand.getText().toString().trim(),
-                    "æˆ‘çš„é£Ÿå“",
-                    parse(kcal),
-                    parse(protein),
-                    parse(fat),
-                    parse(carb),
-                    parse(fiber),
-                    parse(sodium),
-                    basisCode,
-                    NutritionData.Food.BASIS_SERVING.equals(basisCode) ? parse(serving) : 100d
-            );
-
-            customFoods.add(0, food);
-            NutritionData.saveCustomFoods(this, customFoods);
-
-            // Read it back from storage before refreshing, so the displayed basis is the persisted value.
-            customFoods = NutritionData.loadCustomFoods(this);
-            NutritionData.Food stored = customFoods.isEmpty() ? food : customFoods.get(0);
-            Toast.makeText(this,
-                    "å·²ä¿å­˜ï¼š" + one(stored.kcal) + " kcal" + stored.basisSuffix(),
-                    Toast.LENGTH_LONG).show();
+        Button save=button("\u4fdf\u5b58\u5230\u98df\u7269\u5e93");
+        save.setOnClickListener(v->{
+            String n=name.getText().toString().trim();
+            if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u98df\u54c1\u540d\u79f0\u548c\u70ed\u91cf",Toast.LENGTH_SHORT).show();return;}
+            String selected=String.valueOf(basis.getSelectedItem());
+            String code=selected.startsWith("\u6bcf1\u4efd")?NutritionData.Food.BASIS_SERVING:
+                    (selected.contains("\u6beb\u5347")?NutritionData.Food.BASIS_100ML:NutritionData.Food.BASIS_100G);
+            NutritionData.Food food=new NutritionData.Food("c"+System.currentTimeMillis(),n,
+                    brand.getText().toString().trim(),"\u6211\u7684\u98df\u54c1",parse(kcal),parse(protein),parse(fat),parse(carb),
+                    parse(fiber),parse(sodium),code,NutritionData.Food.BASIS_SERVING.equals(code)?parse(serving):100d);
+            customFoods.add(0,food); NutritionData.saveCustomFoods(this,customFoods);
+            customFoods=NutritionData.loadCustomFoods(this);
+            NutritionData.Food stored=customFoods.isEmpty()?food:customFoods.get(0);
+            Toast.makeText(this,"\u5df2\u4fdd\u5b58\uff1a"+one(stored.kcal)+" kcal"+stored.basisSuffix(),Toast.LENGTH_LONG).show();
             showScreen();
         });
-        form.addView(save);
-        content.addView(form);
+        form.addView(save); content.addView(form); content.addView(text("\u6211\u7684\u98df\u54c1",19,true));
+        if(customFoods.isEmpty()) content.addView(muted("\u8fd8\u6ca1\u6709\u81ea\u5b9a\u4e49\u98df\u54c1\u3002"));
+        for(NutritionData.Food f:new ArrayList<>(customFoods)) addFoodCard(f);
+    }
 
-        content.addView(text("æˆ‘çš„é£Ÿå“", 19, true));
-        if (customFoods.isEmpty()) content.addView(muted("è¿˜æ²¡æœ‰è‡ªå®šä¹‰é£Ÿå“ã€‚"));
+    private void addFoodCard(NutritionData.Food f){
+        LinearLayout card=box(),row=new LinearLayout(this),detail=new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL); detail.setOrientation(LinearLayout.VERTICAL);
+        detail.addView(text(f.name,15,true));
+        String meta=(f.brand.isEmpty()?"\u81ea\u5b9a\u4e49":f.brand)+" \u00b7 "+one(f.kcal)+" kcal"+f.basisSuffix();
+        if(f.isPerServing()&&f.servingSize>0) meta+=" \u00b7 1\u4efd\u7ea6"+one(f.servingSize)+"\u514b/\u6beb\u5347";
+        detail.addView(muted(meta));
+        Button add=button("\u8bb0\u5f55"); add.setOnClickListener(v->showAmountDialog(f,"\u52a0\u9910"));
+        Button del=button("\u5220\u9664"); del.setOnClickListener(v->{customFoods.remove(f);NutritionData.saveCustomFoods(this,customFoods);showScreen();});
+        row.addView(detail,new LinearLayout.LayoutParams(0,-2,1)); row.addView(add); row.addView(del); card.addView(row); content.addView(card);
+    }
 
-        for (NutritionData.Food f : new ArrayList<>(customFoods)) {
-            LinearLayout card = box();
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            LinearLayout detail = new LinearLayout(this);
-            detail.setOrientation(LinearLayout.VERTICAL);
-            detail.addView(text(f.name, 15, true));
+    @Override protected void showSettings(){
+        content.addView(text("\u6bcf\u65e5\u8425\u517b\u8ba1\u5212",21,true));
+        content.addView(muted("\u8bbe\u7f6e\u70ed\u91cf\u4e0a\u9650\u548c\u4e09\u5927\u8425\u517b\u7d20\u70ed\u91cf\u6bd4\u4f8b\uff0c\u76ee\u6807\u514b\u6570\u4f1a\u81ea\u52a8\u8ba1\u7b97\u3002"));
+        LinearLayout form=box();
+        form.addView(text("\u6bcf\u65e5\u70ed\u91cf\u4e0a\u9650",14,true));
+        EditText kcal=goalInput("\u70ed\u91cf kcal",goal.kcal); form.addView(kcal);
+        form.addView(text("\u4e09\u5927\u8425\u517b\u7d20\u70ed\u91cf\u6bd4\u4f8b",14,true));
+        EditText pp=goalInput("\u86cb\u767d\u8d28 %",goal.proteinPercent),fp=goalInput("\u8102\u80aa %",goal.fatPercent),cp=goalInput("\u78b3\u6c34 %",goal.carbPercent);
+        form.addView(pp);form.addView(fp);form.addView(cp);
+        TextView status=text("",14,true),calculated=muted(""); form.addView(status);form.addView(calculated);
+        form.addView(text("\u5176\u4ed6\u76ee\u6807",14,true));
+        EditText fiber=goalInput("\u81b3\u98df\u7ea4\u7ef4 g",goal.fiber),sodium=goalInput("\u94a0 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
+        Runnable preview=()->updatePlanPreview(kcal,pp,fp,cp,status,calculated);
+        for(EditText e:new EditText[]{kcal,pp,fp,cp})e.addTextChangedListener(new SimpleWatcher(preview)); preview.run();
+        Button save=button("\u4fdf\u5b58\u8ba1\u5212"); save.setOnClickListener(v->{
+            double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp);
+            if(energy<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u5927\u4e8e0\u7684\u70ed\u91cf\u4e0a\u9650",Toast.LENGTH_SHORT).show();return;}
+            if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"\u86cb\u767d\u8d28\u3001\u8102\u80aa\u3001\u78b3\u6c34\u6bd4\u4f8b\u5408\u8ba1\u5fc5\u987b\u4e3a100%",Toast.LENGTH_LONG).show();return;}
+            goal.kcal=energy;goal.proteinPercent=p;goal.fatPercent=f;goal.carbPercent=c;
+            goal.fiber=valueOr(fiber,25);goal.sodium=valueOr(sodium,2000);goal.recalculateMacros();NutritionData.saveGoal(this,goal);
+            Toast.makeText(this,"\u5df2\u4fdd\u5b58\uff1a\u86cb\u767d"+one(goal.protein)+"g \u00b7 \u8102\u80aa"+one(goal.fat)+"g \u00b7 \u78b3\u6c34"+one(goal.carb)+"g",Toast.LENGTH_LONG).show();showScreen();
+        });
+        form.addView(save);content.addView(form);
+        LinearLayout note=box(); note.addView(text("\u8ba1\u7b97\u65b9\u5f0f",16,true));
+        note.addView(muted("\u86cb\u767d\u8d28\u548c\u78b3\u6c34\u63094 kcal/g\u8ba1\u7b97\uff0c\u8102\u80aa\u63099 kcal/g\u8ba1\u7b97\u3002\u6bd4\u4f8b\u6307\u5404\u8425\u517b\u7d20\u63d0\u4f9b\u7684\u70ed\u91cf\u5360\u6bcf\u65e5\u603b\u70ed\u91cf\u7684\u6bd4\u4f8b\u3002"));
+        Button clear=button("\u6e05\u7a7a\u5168\u90e8\u6570\u636e");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("\u6e05\u7a7a\u6570\u636e")
+                .setMessage("\u786e\u5b9a\u6e05\u7a7a\u5168\u90e8\u996e\u98df\u8bb0\u5f55\u3001\u81ea\u5b9a\u4e49\u98df\u54c1\u548c\u76ee\u6807\u8bbe\u7f6e\u5417\uff1f").setNegativeButton("\u53d6\u6d88",null)
+                .setPositiveButton("\u6e05\u7a7a",(d,w)->{NutritionData.clear(this);reload();screen="\u4eca\u65e5";showScreen();}).show());
+        note.addView(clear);content.addView(note);
+    }
 
-            String meta = (f.brand.isEmpty() ? "è‡ªå®šä¹‰" : f.brand)
-                    + " Â· " + one(f.kcal) + " kcal" + f.basisSuffix();
-            if (f.isPerServing() && f.servingSize > 0) {
-                meta += " Â· 1ä»½çº¦" + one(f.servingSize) + "å…‹/æ¯«å‡";
-            }
-            detail.addView(muted(meta));
+    private void updatePlanPreview(EditText kcal,EditText pp,EditText fp,EditText cp,TextView status,TextView out){
+        double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp),total=p+f+c;
+        boolean valid=energy>0&&Math.abs(total-100d)<0.05d;
+        status.setText("\u6bd4\u4f8b\u5408\u8ba1 "+one(total)+"%"+(valid?" \u2713":"\uff08\u9700\u8981\u4e3a100%\uff09"));
+        status.setTextColor(valid?GREEN:Color.rgb(190,65,55));
+        out.setText("\u81ea\u52a8\u8ba1\u7b97\u76ee\u6807\uff1a\n\u86cb\u767d\u8d28 "+one(energy*p/400d)+"g\uff08"+one(energy*p/100d)+" kcal\uff09\n\u8102\u80aa "+
+                one(energy*f/900d)+"g\uff08"+one(energy*f/100d)+" kcal\uff09\n\u78b3\u6c34 "+one(energy*c/400d)+"g\uff08"+one(energy*c/100d)+" kcal\uff09");
+    }
 
-            Button add = button("‹¢ºÃ–öTˆ¤ì(€€€€€€€€€€€…‘¹Í•Ñ=¹±¥­1¥ÍÑ•¹•È¡Ø€´øÍ¡½İµ½Õ¹Ñ¥…±½œ¡˜°€‹–*ƒ¦’@ˆ¤¤ì(€€€€€€€€€€€	ÕÑÑ½¸‘•°€ô‰ÕÑÑ½¸ ‹–"ƒ¦fˆ¤ì(€€€€€€€€€€€‘•°¹Í•Ñ=¹±¥­1¥ÍÑ•¹•È¡Ø€´øì(€€€€€€€€€€€€€€€ÕÍÑ½µ½½‘Ì¹É•µ½Ù”¡˜¤ì(€€€€€€€€€€€€€€€9ÕÑÉ¥Ñ¥½¹…Ñ„¹Í…Ù•ÕÍÑ½µ½½‘Ì¡Ñ¡¥Ì°ÕÍÑ½µ½½‘Ì¤ì(€€€€€€€€€€€€€€€Í¡½İMÉ••¸ ¤ì(€€€€€€€€€€€ô¤ì((€€€€€€€€€€€É½Ü¹…‘‘Y¥•Ü¡‘•Ñ…¥°°¹•Ü1¥¹•…É1…å½ÕĞ¹1…å½ÕÑA…É…µÌ À°€´È°€Ä¤¤ì(€€€€€€€€€€€É½Ü¹…‘‘Y¥•Ü¡…‘¤ì(€€€€€€€€€€€É½Ü¹…‘‘Y¥•Ü¡‘•°¤ì(€€€€€€€€€€€…É¹…‘‘Y¥•Ü¡É½Ü¤ì(€€€€€€€€€€€½¹Ñ•¹Ğ¹…‘‘Y¥•Ü¡…É¤ì(€€€€€€€ô(€€€ô((€€€=Ù•ÉÉ¥‘”ÁÉ½Ñ•Ñ•Ù½¥Í¡½İM•ÑÑ¥¹Ì ¤ì(€€€€€€€½¹Ñ•¹Ğ¹…‘‘Y¥•Ü¡Ñ•áĞ ‹š¾?š^—¢B—–ï¢º‡–"Hˆ°€ÈÄ°ÑÉÕ”¤¤ì(€€€€€€€½¹Ñ•¹Ğ¹…‘‘Y¥•Ü¡µÕÑ• ‹¢ºûö»·¦?’â+¦fC–J3’â'–’Ÿ¢B—–ïÒƒ·¦?š¾S’ú/¾ò3n»š‚–/šVÃ’òk¢«–*£¢º‡º_ˆ¤¤ì((€€€€€€€1¥¹•…É1…å½ÕĞ™½É´€ô‰½à ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡Ñ•áĞ ‹š¾?š^—·¦?’â+¦f@ˆ°€ÄĞ°ÑÉÕ”¤¤ì(€€€€€€€‘¥ÑQ•áĞ­…°€ô½…±%¹ÁÕĞ ‹·¦<­…°ˆ°½…°¹­…°¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡­…°¤ì((€€€€€€€™½É´¹…‘‘Y¥•Ü¡Ñ•áĞ ‹’â'–’Ÿ¢B—–ïÒƒ·¦?š¾S’ú,ˆ°€ÄĞ°ÑÉÕ”¤¤ì(€€€€€€€‘¥ÑQ•áĞÁÉ½Ñ•¥¹A•É•¹Ğ€ô½…±%¹ÁÕĞ ‹¢n/f÷¢Ò €”ˆ°½…°¹ÁÉ½Ñ•¥¹A•É•¹Ğ¤ì(€€€€€€€‘¥ÑQ•áĞ™…ÑA•É•¹Ğ€ô½…±%¹ÁÕĞ ‹¢¢
-¨€”ˆ°½…°¹™…ÑA•É•¹Ğ¤ì(€€€€€€€‘¥ÑQ•áĞ…É‰A•É•¹Ğ€ô½…±%¹ÁÕĞ ‹ŠÏšÂĞ€”ˆ°½…°¹…É‰A•É•¹Ğ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡ÁÉ½Ñ•¥¹A•É•¹Ğ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡™…ÑA•É•¹Ğ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡…É‰A•É•¹Ğ¤ì((€€€€€€€Q•áÑY¥•ÜÉ…Ñ¥½MÑ…ÑÕÌ€ôÑ•áĞ ˆˆ°€ÄĞ°ÑÉÕ”¤ì(€€€€€€€Q•áÑY¥•Ü…±Õ±…Ñ•€ôµÕÑ• ˆˆ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡É…Ñ¥½MÑ…ÑÕÌ¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡…±Õ±…Ñ•¤ì((€€€€€€€™½É´¹…‘‘Y¥•Ü¡Ñ•áĞ ‹–Û’î[n»š‚ˆ°€ÄĞ°ÑÉÕ”¤¤ì(€€€€€€€‘¥ÑQ•áĞ™¥‰•È€ô½…±%¹ÁÕĞ ‹¢Ï¦ê“îĞœˆ°½…°¹™¥‰•È¤ì(€€€€€€€‘¥ÑQ•áĞÍ½‘¥Õ´€ô½…±%¹ÁÕĞ ‹¦J€µœˆ°½…°¹Í½‘¥Õ´¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡™¥‰•È¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡Í½‘¥Õ´¤ì((€€€€€€€IÕ¹¹…‰±”ÕÁ‘…Ñ•AÉ•Ù¥•Ü€ô€ ¤€´øì(€€€€€€€€€€€‘½Õ‰±”•¹•Éä€ôÁ…ÉÍ”¡­…°¤ì(€€€€€€€€€€€‘½Õ‰±”À€ôÁ…ÉÍ”¡ÁÉ½Ñ•¥¹A•É•¹Ğ¤ì(€€€€€€€€€€€‘½Õ‰±”˜€ôÁ…ÉÍ”¡™…ÑA•É•¹Ğ¤ì(€€€€€€€€€€€‘½Õ‰±”Œ€ôÁ…ÉÍ”¡…É‰A•É•¹Ğ¤ì(€€€€€€€€€€€‘½Õ‰±”Ñ½Ñ…°€ôÀ€¬˜€¬Œì(€€€€€€€€€€€‰½½±•…¸Ù…±¥€ô•¹•Éä€ø€À€˜˜5…Ñ ¹…‰Ì¡Ñ½Ñ…°€´€ÄÀÁ¤€ğ€À¸ÀÕì(€€€€€€€€€€€É…Ñ¥½MÑ…ÑÕÌ¹Í•ÑQ•áĞ ‹š¾S’ú/–B#¢º„€ˆ€¬½¹”¡Ñ½Ñ…°¤€¬€ˆ”ˆ€¬€¡Ù…±¥€ü€ˆƒŠrLˆ€è€‹¾ò#¦r¢š’âèÄÀÀ—¾ò$ˆ¤¤ì(€€€€€€€€€€€É…Ñ¥½MÑ…ÑÕÌ¹Í•ÑQ•áÑ½±½È¡Ù…±¥€üI8€è½±½È¹Éˆ ÄäÀ°€ØÔ°€ÔÔ¤¤ì((€€€€€€€€€€€‘½Õ‰±”ÁÉ½Ñ•¥¹É…µÌ€ô•¹•Éä€¨À€¼€ÄÀÁ€¼€Ñì(€€€€€€€€€€€‘½Õ‰±”™…ÑÉ…µÌ€ô•¹•Éä€¨˜€¼€ÄÀÁ€¼€åì(€€€€€€€€€€€‘½Õ‰±”…É‰É…µÌ€ô•¹•Éä€¨Œ€¼€ÄÀÁ€¼€Ñì(€€€€€€€€€€€…±Õ±…Ñ•¹Í•ÑQ•áĞ ‹¢«–*£¢º‡º_n»š‚¾òiq¸ˆ(€€€€€€€€€€€€€€€€€€€€¬€‹¢n/f÷¢Ò €ˆ€¬½¹”¡ÁÉ½Ñ•¥¹É…µÌ¤€¬€‰Ÿ¾ò ˆ€¬½¹”¡•¹•Éä€¨À€¼€ÄÀÁ¤€¬€ˆ­…³¾ò%q¸ˆ(€€€€€€€€€€€€€€€€€€€€¬€‹¢¢
-¨€ˆ€¬½¹”¡™…ÑÉ…µÌ¤€¬€‰Ÿ¾ò ˆ€¬½¹”¡•¹•Éä€¨˜€¼€ÄÀÁ¤€¬€ˆ­…³¾ò%q¸ˆ(€€€€€€€€€€€€€€€€€€€€¬€‹ŠÏšÂĞ€ˆ€¬½¹”¡…É‰É…µÌ¤€¬€‰Ÿ¾ò ˆ€¬½¹”¡•¹•Éä€¨Œ€¼€ÄÀÁ¤€¬€ˆ­…³¾ò$ˆ¤ì(€€€€€€€ôì((€€€€€€€™½È€¡‘¥ÑQ•áĞ”€è¹•Ü‘¥ÑQ•áÑmuí­…°°ÁÉ½Ñ•¥¹A•É•¹Ğ°™…ÑA•É•¹Ğ°…É‰A•É•¹Ñô¤ì(€€€€€€€€€€€”¹…‘‘Q•áÑ¡…¹•‘1¥ÍÑ•¹•È¡¹•ÜM¥µÁ±•]…Ñ¡•È¡ÕÁ‘…Ñ•AÉ•Ù¥•Ü¤¤ì(€€€€€€€ô(€€€€€€€ÕÁ‘…Ñ•AÉ•Ù¥•Ü¹ÉÕ¸ ¤ì((€€€€€€€	ÕÑÑ½¸Í…Ù”€ô‰ÕÑÑ½¸ ‹’şw–¶c¢º‡–"Hˆ¤ì(€€€€€€€Í…Ù”¹Í•Ñ=¹±¥­1¥ÍÑ•¹•È¡Ø€´øì(€€€€€€€€€€€‘½Õ‰±”•¹•Éä€ôÁ…ÉÍ”¡­…°¤ì(€€€€€€€€€€€‘½Õ‰±”À€ôÁ…ÉÍ”¡ÁÉ½Ñ•¥¹A•É•¹Ğ¤ì(€€€€€€€€€€€‘½Õ‰±”˜€ôÁ…ÉÍ”¡™…ÑA•É•¹Ğ¤ì(€€€€€€€€€€€‘½Õ‰±”Œ€ôÁ…ÉÍ”¡…É‰A•É•¹Ğ¤ì(€€€€€€€€€€€¥˜€¡•¹•Éä€ğô€À¤ì(€€€€€€€€€€€€€€€Q½…ÍĞ¹µ…­•Q•áĞ¡Ñ¡¥Ì°€‹¢¾ß–†¯–g–’Ÿ’ê8Ãj·¦?’â+¦f@ˆ°Q½…ÍĞ¹19Q!}M!=IP¤¹Í¡½Ü ¤ì(€€€€€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€ô(€€€€€€€€€€€¥˜€¡5…Ñ ¹…‰Ì¡À€¬˜€¬Œ€´€ÄÀÁ¤€øô€À¸ÀÕ¤ì(€€€€€€€€€€€€€€€Q½…ÍĞ¹µ…­•Q•áĞ¡Ñ¡¥Ì°€‹¢n/f÷¢Ò£¢¢
-«ŠÏšÂÓš¾S’ú/–B#¢º‡–ş¦†ï’âèÄÀÀ”ˆ°Q½…ÍĞ¹19Q!}1=9¤¹Í¡½Ü ¤ì(€€€€€€€€€€€€€€€É•ÑÕÉ¸ì(€€€€€€€€€€€ô((€€€€€€€€€€€½…°¹­…°€ô•¹•Éäì(€€€€€€€€€€€½…°¹ÁÉ½Ñ•¥¹A•É•¹Ğ€ôÀì(€€€€€€€€€€€½…°¹™…ÑA•É•¹Ğ€ô˜ì(€€€€€€€€€€€½…°¹…É‰A•É•¹Ğ€ôŒì(€€€€€€€€€€€½…°¹™¥‰•È€ôÙ…±Õ•=È¡™¥‰•È°€ÈÔ¤ì(€€€€€€€€€€€½…°¹Í½‘¥Õ´€ôÙ…±Õ•=È¡Í½‘¥Õ´°€ÈÀÀÀ¤ì(€€€€€€€€€€€½…°¹É•…±Õ±…Ñ•5…É½Ì ¤ì(€€€€€€€€€€€9ÕÑÉ¥Ñ¥½¹…Ñ„¹Í…Ù•½…°¡Ñ¡¥Ì°½…°¤ì(€€€€€€€€€€€Q½…ÍĞ¹µ…­•Q•áĞ¡Ñ¡¥Ì°(€€€€€€€€€€€€€€€€€€€€‹–ŞË’şw–¶c¾òk¢n/fôˆ€¬½¹”¡½…°¹ÁÉ½Ñ•¥¸¤€¬€‰œƒ
-Üƒ¢¢
-¨ˆ€¬½¹”¡½…°¹™…Ğ¤(€€€€€€€€€€€€€€€€€€€€€€€€€€€€¬€‰œƒ
-ÜƒŠÏšÂĞˆ€¬½¹”¡½…°¹…Éˆ¤€¬€‰œˆ°(€€€€€€€€€€€€€€€€€€€Q½…ÍĞ¹19Q!}1=9¤¹Í¡½Ü ¤ì(€€€€€€€€€€€Í¡½İMÉ••¸ ¤ì(€€€€€€€ô¤ì(€€€€€€€™½É´¹…‘‘Y¥•Ü¡Í…Ù”¤ì(€€€€€€€½¹Ñ•¹Ğ¹…‘‘Y¥•Ü¡™½É´¤ì((€€€€€€€1¥¹•…É1…å½ÕĞ¹½Ñ”€ô‰½à ¤ì(€€€€€€€¹½Ñ”¹…‘‘Y¥•Ü¡Ñ•áĞ ‹¢º‡º_šZç–ò<ˆ°€ÄØ°ÑÉÕ”¤¤ì(€€€€€€€¹½Ñ”¹…‘‘Y¥•Ü¡µÕÑ• ‹¢n/f÷¢Ò£–J3ŠÏšÂÓš2$Ğ­…°½Ÿ¢º‡º_¾ò3¢¢
-«š2$ä­…°½Ÿ¢º‡º_š¾S’ú/š2–B¢B—–ïÒƒš>C’úoj·¦?–6ƒš¾?š^—šï·¦?jš¾S’ú/ˆ¤¤ì(€€€€€€€¹½Ñ”¹…‘‘Y¥•Ü¡Ñ•áĞ ‹šVÃš6»¢¾Óšb8ˆ°€ÄØ°ÑÉÕ”¤¤ì(€€€€€€€¹½Ñ”¹…‘‘Y¥•Ü¡µÕÑ• ‹–ö»¦&§’âë–âã¢–>¢–ó¾ò3–º{¦f–2¢¦–N¢¾ß’î—–V–N¢B—–ïš‚¶û’âë––£¦£¢ºÃ–öW’î’şw–¶c–r£šr³šrëˆ¤¤ì(€€€€€€€	ÕÑÑ½¸±•…È€ô‰ÕÑÑ½¸ ‹šâ¦ë–£¦£šVÃš6¸ˆ¤ì(€€€€€€€±•…È¹Í•Ñ=¹±¥­1¥ÍÑ•¹•È¡Ø€´ø¹•Ü±•ÉÑ¥…±½œ¹	Õ¥±‘•È¡Ñ¡¥Ì¤(€€€€€€€€€€€€€€€€¹Í•ÑQ¥Ñ±” ‹šâ¦ëšVÃš6¸ˆ¤(€€€€€€€€€€€€€€€€¹Í•Ñ5•ÍÍ…” ‹†»–ºkšâ¦ë–£¦£¦–»¦¢ºÃ–öW¢«–ºk’æ'¦–N–J3n»š‚¢ºûö»–B_¾ò|ˆ¤(€€€€€€€€€€€€€€€€¹Í•Ñ9•…Ñ¥Ù•	ÕÑÑ½¸ ‹–>[šÚ ˆ°¹Õ±°¤(€€€€€€€€€€€€€€€€¹Í•ÑA½Í¥Ñ¥Ù•	ÕÑÑ½¸ ‹šâ¦èˆ°€¡°Ü¤€´øì(€€€€€€€€€€€€€€€€€€€9ÕÑÉ¥Ñ¥½¹…Ñ„¹±•…È¡Ñ¡¥Ì¤ì(€€€€€€€€€€€€€€€€€€€É•±½… ¤ì(€€€€€€€€€€€€€€€€€€€ÍÉ••¸€ô€‹’î+š^”ˆì(€€€€€€€€€€€€€€€€€€€Í¡½İMÉ••¸ ¤ì(€€€€€€€€€€€€€€€ô¤¹Í¡½Ü ¤¤ì(€€€€€€€¹½Ñ”¹…‘‘Y¥•Ü¡±•…È¤ì(€€€€€€€½¹Ñ•¹Ğ¹…‘‘Y¥•Ü¡¹½Ñ”¤ì(€€€ô((€€€ÁÉ¥Ù…Ñ”‘¥ÑQ•áĞ½…±%¹ÁÕĞ¡MÑÉ¥¹œ¡¥¹Ğ°‘½Õ‰±”Ù…±Õ”¤ì(€€€€€€€‘¥ÑQ•áĞ”€ô¥¹ÁÕĞ¡¡¥¹Ğ°ÑÉÕ”¤ì(€€€€€€€”¹Í•ÑQ•áĞ¡½¹”¡Ù…±Õ”¤¤ì(€€€€€€€É•ÑÕÉ¸”ì(€€€ô)ô
+    private EditText goalInput(String hint,double value){EditText e=input(hint,true);e.setText(one(value));return e;}
+}
