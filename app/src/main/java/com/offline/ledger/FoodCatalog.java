@@ -1,88 +1,105 @@
 package com.offline.ledger;
 
+import android.content.Context;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public final class FoodCatalog {
+    public static final String SOURCE_REPOSITORY = "Sanotsu/china-food-composition-data";
+    public static final String SOURCE_COMMIT = "095034a96376d893582b412900fa8fdf792b4194";
+    private static List<NutritionData.Food> cache;
+    private static String sourceNotice = "";
+
     private FoodCatalog() {}
+
+    public static synchronized List<NutritionData.Food> commonFoods(Context context) {
+        if (cache == null) cache = loadAsset(context);
+        return new ArrayList<>(cache);
+    }
+
+    public static synchronized int count(Context context) {
+        if (cache == null) cache = loadAsset(context);
+        return cache.size();
+    }
+
+    public static synchronized String sourceNotice(Context context) {
+        if (cache == null) cache = loadAsset(context);
+        return sourceNotice;
+    }
+
+    private static List<NutritionData.Food> loadAsset(Context context) {
+        List<NutritionData.Food> foods = new ArrayList<>();
+        try (InputStream input = context.getAssets().open("china_food_composition.json")) {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[16384];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            JSONObject root = new JSONObject(output.toString(StandardCharsets.UTF_8.name()));
+            sourceNotice = root.optString("sourceNotice", "");
+            JSONArray array = root.optJSONArray("foods");
+            if (array != null) {
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject o = array.optJSONObject(i);
+                    if (o == null) continue;
+                    NutritionData.Food f = new NutritionData.Food(
+                            o.optString("id"), o.optString("name"), "",
+                            o.optString("category", "\u5176\u4ed6\u7c7b"),
+                            o.optDouble("kcal"), o.optDouble("protein"),
+                            o.optDouble("fat"), o.optDouble("carb"),
+                            o.optDouble("fiber"), o.optDouble("sodium"));
+                    f.subCategory = o.optString("subCategory");
+                    f.source = SOURCE_REPOSITORY;
+                    f.sourceCode = o.optString("sourceCode");
+                    f.remark = o.optString("remark");
+                    f.edible = o.optDouble("edible");
+                    f.water = o.optDouble("water");
+                    f.cholesterol = o.optDouble("cholesterol");
+                    f.ash = o.optDouble("ash");
+                    f.vitaminA = o.optDouble("vitaminA");
+                    f.carotene = o.optDouble("carotene");
+                    f.retinol = o.optDouble("retinol");
+                    f.thiamin = o.optDouble("thiamin");
+                    f.riboflavin = o.optDouble("riboflavin");
+                    f.niacin = o.optDouble("niacin");
+                    f.vitaminC = o.optDouble("vitaminC");
+                    f.vitaminE = o.optDouble("vitaminE");
+                    f.calcium = o.optDouble("calcium");
+                    f.phosphorus = o.optDouble("phosphorus");
+                    f.potassium = o.optDouble("potassium");
+                    f.magnesium = o.optDouble("magnesium");
+                    f.iron = o.optDouble("iron");
+                    f.zinc = o.optDouble("zinc");
+                    f.selenium = o.optDouble("selenium");
+                    f.copper = o.optDouble("copper");
+                    f.manganese = o.optDouble("manganese");
+                    if (!f.name.isEmpty()) foods.add(f);
+                }
+            }
+        } catch (Exception ignored) {
+            sourceNotice = "\u6269\u5c55\u98df\u7269\u5e93\u52a0\u8f7d\u5931\u8d25\uff0c\u5df2\u4f7f\u7528\u5c11\u91cf\u5907\u7528\u6570\u636e\u3002";
+        }
+        if (foods.isEmpty()) foods.addAll(fallbackFoods());
+        return foods;
+    }
 
     private static NutritionData.Food f(String id, String name, String category,
             double kcal, double protein, double fat, double carb, double fiber, double sodium) {
         return new NutritionData.Food(id, name, "", category, kcal, protein, fat, carb, fiber, sodium);
     }
 
-    public static List<NutritionData.Food> commonFoods() {
+    private static List<NutritionData.Food> fallbackFoods() {
         return new ArrayList<>(Arrays.asList(
-            f("rice","米饭","主食",116,2.6,0.3,25.9,0.3,1),
-            f("brown_rice","糙米饭","主食",111,2.6,0.9,23,1.5,2),
-            f("porridge","白粥","主食",46,1.1,0.2,9.8,0.3,2),
-            f("oats","燕麦片","主食",377,13.2,6.5,67.7,10.1,4),
-            f("whole_bread","全麦面包","主食",247,12.5,3.4,41.2,6,430),
-            f("white_bread","白面包","主食",266,8.5,3.2,49.4,2.7,491),
-            f("mantou","馒头","主食",223,7,1.1,47,1.3,165),
-            f("noodles","面条","主食",138,4.5,2.1,25,1.2,5),
-            f("udon","乌冬面","主食",105,2.6,0.4,21.6,0.8,260),
-            f("soba","荞麦面","主食",114,4.8,0.7,23,2,60),
-            f("pasta","意大利面","主食",158,5.8,0.9,30.9,1.8,1),
-            f("sweet_potato","红薯","主食",86,1.6,0.1,20.1,3,55),
-            f("potato","土豆","主食",77,2,0.1,17.5,2.2,6),
-            f("corn","玉米","主食",112,4,1.2,22.8,2.9,15),
-            f("egg","鸡蛋","蛋奶豆",144,13.3,8.8,2.8,0,131),
-            f("boiled_egg","水煮蛋","蛋奶豆",155,12.6,10.6,1.1,0,124),
-            f("milk","全脂牛奶","蛋奶豆",61,3.2,3.3,4.8,0,43),
-            f("low_milk","低脂牛奶","蛋奶豆",43,3.4,1,5,0,44),
-            f("yogurt","无糖酸奶","蛋奶豆",63,5.3,1.6,7,0,70),
-            f("greek_yogurt","希腊酸奶","蛋奶豆",97,9,5,3.9,0,36),
-            f("soy_milk","无糖豆浆","蛋奶豆",33,3,1.6,1.8,0.6,35),
-            f("tofu","豆腐","蛋奶豆",76,8.1,4.8,1.9,0.3,7),
-            f("cheese","奶酪","蛋奶豆",350,22,28,2,0,620),
-            f("chicken_breast","鸡胸肉","肉鱼",165,31,3.6,0,0,74),
-            f("chicken_thigh","鸡腿肉","肉鱼",209,26,10.9,0,0,95),
-            f("beef","牛里脊","肉鱼",187,28,7.8,0,0,55),
-            f("pork","瘦猪肉","肉鱼",143,26,3.5,0,0,62),
-            f("pork_belly","猪五花","肉鱼",518,9.3,53,0,0,55),
-            f("salmon","三文鱼","肉鱼",208,20,13,0,0,59),
-            f("tuna","金枪鱼","肉鱼",132,28,1.3,0,0,47),
-            f("shrimp","虾","肉鱼",99,24,0.3,0.2,0,111),
-            f("sausage","火腿肠","肉鱼",250,12,20,5,0,900),
-            f("broccoli","西兰花","蔬菜",34,2.8,0.4,6.6,2.6,33),
-            f("spinach","菠菜","蔬菜",23,2.9,0.4,3.6,2.2,79),
-            f("lettuce","生菜","蔬菜",15,1.4,0.2,2.9,1.3,28),
-            f("tomato","番茄","蔬菜",18,0.9,0.2,3.9,1.2,5),
-            f("cucumber","黄瓜","蔬菜",15,0.7,0.1,3.6,0.5,2),
-            f("carrot","胡萝卜","蔬菜",41,0.9,0.2,9.6,2.8,69),
-            f("pumpkin","南瓜","蔬菜",26,1,0.1,6.5,0.5,1),
-            f("mushroom","蘑菇","蔬菜",22,3.1,0.3,3.3,1,5),
-            f("edamame","毛豆","蔬菜",121,11.9,5.2,8.9,5.2,6),
-            f("apple","苹果","水果",52,0.3,0.2,13.8,2.4,1),
-            f("banana","香蕉","水果",89,1.1,0.3,22.8,2.6,1),
-            f("orange","橙子","水果",47,0.9,0.1,11.8,2.4,0),
-            f("strawberry","草莓","水果",32,0.7,0.3,7.7,2,1),
-            f("blueberry","蓝莓","水果",57,0.7,0.3,14.5,2.4,1),
-            f("grape","葡萄","水果",69,0.7,0.2,18.1,0.9,2),
-            f("watermelon","西瓜","水果",30,0.6,0.2,7.6,0.4,1),
-            f("avocado","牛油果","水果",160,2,14.7,8.5,6.7,7),
-            f("almond","杏仁","坚果",579,21.2,49.9,21.6,12.5,1),
-            f("peanut","花生","坚果",567,25.8,49.2,16.1,8.5,18),
-            f("walnut","核桃","坚果",654,15.2,65.2,13.7,6.7,2),
-            f("cashew","腰果","坚果",553,18.2,43.9,30.2,3.3,12),
-            f("curry_rice","咖喱饭","常见餐食",150,4.5,5.5,21,1.2,420),
-            f("fried_rice","炒饭","常见餐食",190,5.2,7,28,1,430),
-            f("beef_bowl","牛肉盖饭","常见餐食",170,7,5.5,23,1,390),
-            f("sushi","寿司","常见餐食",150,5.5,2.5,26,1,450),
-            f("onigiri","饭团","常见餐食",180,4,2.5,35,1,400),
-            f("dumpling","饺子","常见餐食",220,9,9,26,1.5,520),
-            f("baozi","包子","常见餐食",210,8,7,30,1.3,420),
-            f("mapo_tofu","麻婆豆腐","常见餐食",140,8,9,7,1.2,550),
-            f("chips","薯片","零食饮料",536,7,35,53,4.8,525),
-            f("chocolate","巧克力","零食饮料",546,4.9,31,61,7,24),
-            f("cookie","饼干","零食饮料",480,6,20,68,2,420),
-            f("icecream","冰淇淋","零食饮料",207,3.5,11,24,0,80),
-            f("protein_bar","蛋白棒","零食饮料",350,30,10,38,8,350),
-            f("cola","可乐","零食饮料",42,0,0,10.6,0,4),
-            f("orange_juice","橙汁","零食饮料",45,0.7,0.2,10.4,0.2,1),
-            f("latte","拿铁咖啡","零食饮料",55,3,2.5,5,0,45)
+                f("rice", "\u7c73\u996d", "\u8c37\u7c7b\u53ca\u5176\u5236\u54c1", 116, 2.6, 0.3, 25.9, 0.3, 1),
+                f("egg", "\u9e21\u86cb", "\u86cb\u7c7b\u53ca\u5176\u5236\u54c1", 144, 13.3, 8.8, 2.8, 0, 131),
+                f("milk", "\u725b\u5976", "\u4e73\u7c7b\u53ca\u5176\u5236\u54c1", 61, 3.2, 3.3, 4.8, 0, 43),
+                f("chicken", "\u9e21\u8089", "\u79bd\u8089\u7c7b\u53ca\u5176\u5236\u54c1", 145, 20.3, 6.7, 0.9, 0, 62.8),
+                f("apple", "\u82f9\u679c", "\u6c34\u679c\u7c7b\u53ca\u5176\u5236\u54c1", 52, 0.3, 0.2, 13.8, 2.4, 1)
         ));
     }
 }
