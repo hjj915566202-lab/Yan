@@ -13,7 +13,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
 
-public class MainActivity extends NutritionFoodActivity {
+public class MainActivity extends NutritionTrendActivity {
     @Override protected void showCustomFoodScreen() {
         content.addView(text("\u6dfb\u52a0\u5305\u88c5\u98df\u54c1", 21, true));
         LinearLayout form = box();
