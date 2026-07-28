@@ -6,6 +6,7 @@ on:
       - nutrition-ledger-build
     paths:
       - 'app/**'
+      - 'tools/**'
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
@@ -16,6 +17,7 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'tools/**'
       - 'build.gradle'
       - 'settings.gradle'
       - 'gradle.properties'
@@ -50,6 +52,27 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Prepare China food composition asset
+        run: |
+          rm -rf /tmp/china-food-composition-data
+          mkdir -p /tmp/china-food-composition-data
+          git -C /tmp/china-food-composition-data init
+          git -C /tmp/china-food-composition-data remote add origin https://github.com/Sanotsu/china-food-composition-data.git
+          git -C /tmp/china-food-composition-data sparse-checkout init --cone
+          git -C /tmp/china-food-composition-data sparse-checkout set json_data_vision_251206_Qwen2-5-VL-72B-Instruct
+          git -C /tmp/china-food-composition-data fetch --depth 1 origin 095034a96376d893582b412900fa8fdf792b4194
+          git -C /tmp/china-food-composition-data checkout FETCH_HEAD
+          python3 tools/build_china_food_asset.py \
+            /tmp/china-food-composition-data/json_data_vision_251206_Qwen2-5-VL-72B-Instruct \
+            app/src/main/assets/china_food_composition.json
+          python3 - <<'PY'
+          import json
+          path='app/src/main/assets/china_food_composition.json'
+          data=json.load(open(path,encoding='utf-8'))
+          assert data['count'] >= 1600, data['count']
+          print('validated food count:', data['count'])
+          PY
+
       - name: Restore stable signing key
         run: base64 --decode nutrition-ledger.jks.b64 > nutrition-ledger.jks
 
@@ -64,7 +87,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NutritionLedger-v2.3.0
+          name: NutritionLedger-v2.4.0
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
