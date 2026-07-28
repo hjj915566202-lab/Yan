@@ -41,9 +41,9 @@ public abstract class NutritionBaseActivity extends Activity {
     protected EditText input(String hint,boolean decimal){EditText e=new EditText(this);e.setHint(hint);if(decimal)e.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);return e;}
     protected LinearLayout box(){LinearLayout b=new LinearLayout(this);b.setOrientation(LinearLayout.VERTICAL);b.setPadding(dp(16),dp(13),dp(16),dp(13));b.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(10));b.setLayoutParams(p);return b;}
     protected Spinner spinner(String[] values,String selected){Spinner s=new Spinner(this);s.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,values));for(int i=0;i<values.length;i++)if(values[i].equals(selected))s.setSelection(i);return s;}
-    protected double parse(EditText e){try{return Double.parseDouble(e.getText().toString().trim());}catch(Exception x){return 0;}}
-    protected double valueOr(EditText e,double fallback){double v=parse(e);return v>0?v:fallback;}
-    protected String one(double n){return String.format(Locale.US,n==Math.rint(n)?"%.0f":"%.1f",n);}
+    protected double parse(EditText e){try{return NutritionData.safeNumber(Double.parseDouble(e.getText().toString().trim()));}catch(Exception x){return 0;}}
+    protected double valueOr(EditText e,double fallback){double v=parse(e);return v>0?v:NutritionData.safeNumber(fallback);}
+    protected String one(double n){n=NutritionData.safeNumber(n);return String.format(Locale.US,n==Math.rint(n)?"%.0f":"%.1f",n);}
     protected List<NutritionData.Food> allFoods(){List<NutritionData.Food>a=new ArrayList<>(customFoods.size()+builtInFoods.size());a.addAll(customFoods);a.addAll(builtInFoods);return a;}
 
     private void buildShell(){
