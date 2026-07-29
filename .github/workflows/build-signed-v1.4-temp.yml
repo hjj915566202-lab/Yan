@@ -1,4 +1,4 @@
-name: Build Signed Offline Ledger v1.4.0
+name: Build Signed Offline Ledger v1.5.0
 
 on:
   pull_request:
@@ -15,8 +15,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Apply analytics feature patch
-        run: git apply analytics-v1.4.patch
+      - name: Apply analytics and monthly credit card patches
+        run: |
+          git apply analytics-v1.4.patch
+          git apply credit-v1.5.patch
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -39,11 +41,11 @@ jobs:
           run-id: 30200964550
       - name: Sign and verify APK
         run: |
-          $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.4.0-aligned.apk
-          $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks signing/offline-ledger.keystore --ks-pass pass:offlineledger --key-pass pass:offlineledger --out offline-savings-ledger-v1.4.0.apk offline-savings-ledger-v1.4.0-aligned.apk
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs offline-savings-ledger-v1.4.0.apk
+          $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.5.0-aligned.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign --ks signing/offline-ledger.keystore --ks-pass pass:offlineledger --key-pass pass:offlineledger --out offline-savings-ledger-v1.5.0.apk offline-savings-ledger-v1.5.0-aligned.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs offline-savings-ledger-v1.5.0.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: offline-savings-ledger-v1.4.0
-          path: offline-savings-ledger-v1.4.0.apk
+          name: offline-savings-ledger-v1.5.0
+          path: offline-savings-ledger-v1.5.0.apk
           retention-days: 7
