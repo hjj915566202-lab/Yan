@@ -1,410 +1,143 @@
 package com.offline.ledger;
 
-import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ComponentName;
-import android.content.Intent;
 import android.graphics.Color;
-import android.os.Bundle;
-import android.provider.Settings;
-import android.service.notification.NotificationListenerService;
-import android.text.InputType;
 import android.view.Gravity;
-import android.widget.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
-public class MainActivity extends Activity {
-    private LinearLayout root, content;
-    private TextView monthTitle;
-    private final NumberFormat yen=NumberFormat.getCurrencyInstance(Locale.JAPAN);
-    private final String[] cats={"饮食","交通","购物","日用品","医疗","娱乐","其他"};
-    private final String[] wallets={"个人","公用"};
-    private String selectedMonth=LedgerStore.monthNow();
-    private String currentScreen="概览";
+public class MainActivity extends NutritionTrendActivity {
+    @Override protected void showCustomFoodScreen() {
+        content.addView(text("自定义食品与套餐", 21, true));
 
-    private static final String[] INCOME_KEYS={"salary","transportAllowance","bonus","extraIncome"};
-    private static final String[] CARRY_KEYS={"salary","transportAllowance"};
+        LinearLayout comboBox = box();
+        comboBox.addView(text("餐食套餐",17,true));
+        comboBox.addView(muted("把多种食材和各自用量合并成1份。记录套餐时会保留食材明细和合计重量。"));
+        Button createCombo = button("＋ 创建餐食套餐"); createCombo.setOnClickListener(v -> showComboBuilder());
+        comboBox.addView(createCombo); content.addView(comboBox);
 
-    @Override public void onCreate(Bundle b) { super.onCreate(b); showShell(); }
-    @Override protected void onResume(){ super.onResume(); if(content!=null) showCurrentScreen(); }
-
-    private TextView text(String s,int sp,boolean bold){
-        TextView v=new TextView(this); v.setText(s); v.setTextSize(sp); v.setTextColor(Color.rgb(30,35,45));
-        v.setPadding(16,12,16,12); if(bold)v.setTypeface(null,1); return v;
-    }
-    private TextView muted(String s){ TextView v=text(s,13,false); v.setTextColor(Color.rgb(100,108,116)); return v; }
-    private Button button(String s){ Button b=new Button(this); b.setText(s); b.setAllCaps(false); return b; }
-
-    private void showShell(){
-        root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(247,248,250));
-        TextView title=text("离线存款账本",24,true); title.setPadding(24,24,24,8); root.addView(title);
-
-        LinearLayout monthBar=new LinearLayout(this); monthBar.setOrientation(LinearLayout.HORIZONTAL); monthBar.setGravity(Gravity.CENTER_VERTICAL); monthBar.setPadding(12,0,12,10);
-        Button prev=button("‹"); Button next=button("›");
-        monthTitle=text(monthDisplay(selectedMonth),18,true); monthTitle.setGravity(Gravity.CENTER);
-        monthBar.addView(prev,new LinearLayout.LayoutParams(64,-2));
-        monthBar.addView(monthTitle,new LinearLayout.LayoutParams(0,-2,1));
-        monthBar.addView(next,new LinearLayout.LayoutParams(64,-2));
-        prev.setOnClickListener(v->{selectedMonth=LedgerStore.shiftMonth(selectedMonth,-1);refreshMonth();});
-        next.setOnClickListener(v->{selectedMonth=LedgerStore.shiftMonth(selectedMonth,1);refreshMonth();});
-        root.addView(monthBar);
-
-        LinearLayout nav=new LinearLayout(this); nav.setOrientation(LinearLayout.HORIZONTAL);
-        String[] n={"概览","流水","待确认","规划","设置"};
-        for(String x:n){
-            Button b=button(x); nav.addView(b,new LinearLayout.LayoutParams(0,-2,1));
-            b.setOnClickListener(v->{currentScreen=x;showCurrentScreen();});
-        }
-        root.addView(nav);
-        ScrollView sc=new ScrollView(this); content=new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(20,20,20,100); sc.addView(content); root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));
-        setContentView(root); showDashboard();
-    }
-
-    private void refreshMonth(){ monthTitle.setText(monthDisplay(selectedMonth)); showCurrentScreen(); }
-    private String monthDisplay(String month){ return month.substring(0,4)+"年"+Integer.parseInt(month.substring(5,7))+"月"; }
-    private void showCurrentScreen(){
-        if("流水".equals(currentScreen))showTransactions(false);
-        else if("待确认".equals(currentScreen))showTransactions(true);
-        else if("规划".equals(currentScreen))showPlan();
-        else if("设置".equals(currentScreen))showSettings();
-        else if("固定支出".equals(currentScreen))showFixedExpenses();
-        else if("诊断".equals(currentScreen))showDiagnostics();
-        else showDashboard();
-    }
-    private void clear(){content.removeAllViews();}
-    private void card(String title,String value){
-        LinearLayout c=new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(20,16,20,16); c.setBackgroundColor(Color.WHITE);
-        c.addView(text(title,14,false)); c.addView(text(value,23,true));
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,12); content.addView(c,lp);
-    }
-    private void sectionTitle(String title,String note){
-        TextView t=text(title,18,true); t.setPadding(8,24,8,4); content.addView(t);
-        if(note!=null&&!note.isEmpty()){ TextView n=muted(note); n.setPadding(8,0,8,10); content.addView(n); }
-    }
-
-    private long variableExpense(String month,String wallet){
-        long total=0;
-        for(LedgerStore.Tx t:LedgerStore.load(this)){
-            if(t.pending || !t.date.startsWith(month) || "固定支出".equals(t.category)) continue;
-            if(wallet==null || wallet.equals(t.wallet)) total+=t.amount;
-        }
-        return total;
-    }
-    private long incomeTotal(JSONObject p){ long x=0;for(String k:INCOME_KEYS)x+=p.optLong(k);return x; }
-    private long fixedTotal(String month,String wallet){
-        long total=0;
-        for(LedgerStore.FixedExpense item:LedgerStore.fixedExpenses(this,month)){
-            if(wallet.equals(item.wallet)) total+=item.amount;
-        }
-        return total;
-    }
-    private long personalFixedTotal(String month){ return fixedTotal(month,"个人"); }
-    private long sharedFixedTotal(String month){ return fixedTotal(month,"公用"); }
-    private long personalEnd(String month,JSONObject p){
-        return p.optLong("personalPreviousBalance")+incomeTotal(p)-personalFixedTotal(month)-variableExpense(month,"个人")-p.optLong("sharedTransfer");
-    }
-    private long sharedEnd(String month,JSONObject p){
-        return p.optLong("sharedPreviousBalance")+p.optLong("sharedTransfer")-sharedFixedTotal(month)-variableExpense(month,"公用");
-    }
-
-    private void showDashboard(){
-        currentScreen="概览"; clear(); List<LedgerStore.Tx> all=LedgerStore.load(this);
-        long personalExpense=0, sharedExpense=0; int pending=0; long[] by=new long[cats.length];
-        for(LedgerStore.Tx t:all){
-            if(t.pending){pending++;continue;}
-            if(!t.date.startsWith(selectedMonth) || "固定支出".equals(t.category))continue;
-            if("公用".equals(t.wallet))sharedExpense+=t.amount; else personalExpense+=t.amount;
-            for(int i=0;i<cats.length;i++)if(cats[i].equals(t.category))by[i]+=t.amount;
-        }
-        JSONObject plan=effectivePlan(selectedMonth);
-        long income=incomeTotal(plan), personalFixed=personalFixedTotal(selectedMonth), sharedFixed=sharedFixedTotal(selectedMonth);
-        long personalEnd=personalEnd(selectedMonth,plan), sharedEnd=sharedEnd(selectedMonth,plan);
-        long totalExpense=personalExpense+sharedExpense+personalFixed+sharedFixed;
-
-        content.addView(text(monthDisplay(selectedMonth)+"概览",20,true));
-        card("个人钱包预计余额",yen.format(personalEnd));
-        card("公用钱包预计余额",yen.format(sharedEnd));
-        card("两个钱包合计",yen.format(personalEnd+sharedEnd));
-        card("本月总支出",yen.format(totalExpense));
-        content.addView(muted("公用钱包支出只扣公用余额；转入公用钱包只是内部转账，不计为收入或支出。"));
-
-        Button add=button("＋ 手动记一笔日常支出"); add.setOnClickListener(v->editTx(null)); content.addView(add);
-        if(pending>0){ Button p=button("有 "+pending+" 笔支付通知待确认"); p.setOnClickListener(v->{currentScreen="待确认";showTransactions(true);}); content.addView(p); }
-
-        sectionTitle("本月钱包支出","固定支出在规划页单独计算。");
-        content.addView(text("个人钱包日常支出　"+yen.format(personalExpense),16,false));
-        content.addView(text("公用钱包日常支出　"+yen.format(sharedExpense),16,false));
-        content.addView(text("个人钱包固定支出　"+yen.format(personalFixed),16,false));
-        content.addView(text("公用钱包固定支出　"+yen.format(sharedFixed),16,false));
-
-        sectionTitle("上月结余与转账","");
-        content.addView(text("个人上月结余　"+yen.format(plan.optLong("personalPreviousBalance")),16,false));
-        content.addView(text("公用上月结余　"+yen.format(plan.optLong("sharedPreviousBalance")),16,false));
-        content.addView(text("本月转入公用钱包　"+yen.format(plan.optLong("sharedTransfer")),16,false));
-        content.addView(text("本月收入　"+yen.format(income),16,false));
-
-        sectionTitle("分类汇总",""); boolean any=false;
-        for(int i=0;i<cats.length;i++) if(by[i]>0){any=true;content.addView(text(cats[i]+"　"+yen.format(by[i]),16,false));}
-        if(!any)content.addView(muted("本月暂无日常支出记录。"));
-    }
-
-    private void showTransactions(boolean pendingOnly){
-        currentScreen=pendingOnly?"待确认":"流水"; clear(); content.addView(text(pendingOnly?"待确认":"本月流水",20,true));
-        if(!pendingOnly)content.addView(muted(monthDisplay(selectedMonth)+"的日常支出；每笔支出会扣除所选择的钱包余额。"));
-        List<LedgerStore.Tx> list=LedgerStore.load(this); int shown=0;
-        for(LedgerStore.Tx t:list){
-            if(pendingOnly){ if(!t.pending)continue; }
-            else { if(t.pending || !t.date.startsWith(selectedMonth) || "固定支出".equals(t.category))continue; }
-            shown++;
-            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(18,12,18,12); row.setBackgroundColor(Color.WHITE);
-            row.addView(text(t.merchant.isEmpty()?t.category:t.merchant,17,true));
-            row.addView(text(t.date+" · "+t.category+" · "+t.wallet+"钱包 · "+t.source,13,false));
-            row.addView(text(yen.format(t.amount),20,true));
-            if(pendingOnly&&!t.raw.isEmpty()) row.addView(muted(t.raw));
-            LinearLayout actions=new LinearLayout(this);
-            Button edit=button(pendingOnly?"确认/编辑":"编辑"); edit.setOnClickListener(v->editTx(t)); actions.addView(edit);
-            Button del=button("删除"); del.setOnClickListener(v->{ List<LedgerStore.Tx> a=LedgerStore.load(this); a.removeIf(x->x.id.equals(t.id)); LedgerStore.save(this,a); showTransactions(pendingOnly); }); actions.addView(del); row.addView(actions);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,12);content.addView(row,lp);
-        }
-        if(shown==0) content.addView(text(pendingOnly?"暂无待确认记录。修正版会同时读取提醒、静默和常驻通知。":"本月暂无日常流水。",16,false));
-    }
-
-    private Spinner spinner(String[] values,String selected){ Spinner s=new Spinner(this); ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,values);s.setAdapter(a);for(int i=0;i<values.length;i++)if(values[i].equals(selected))s.setSelection(i);return s; }
-    private EditText input(String hint,String value,boolean number){ EditText e=new EditText(this);e.setHint(hint);e.setText(value);if(number)e.setInputType(InputType.TYPE_CLASS_NUMBER);return e; }
-    private LinearLayout labeledInput(String label,EditText input){
-        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(4,4,4,8);
-        TextView l=text(label,14,true); l.setPadding(6,4,6,2); box.addView(l); box.addView(input); return box;
-    }
-
-    private String defaultDateForSelectedMonth(){ return selectedMonth.equals(LedgerStore.monthNow())?LedgerStore.today():selectedMonth+"-01"; }
-
-    private void editTx(LedgerStore.Tx old){
-        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(30,10,30,0);
-        EditText amount=input("例如 1280",old==null?"":String.valueOf(old.amount),true);
-        EditText merchant=input("商家/备注",old==null?"":old.merchant,false);
-        EditText date=input("YYYY-MM-DD",old==null?defaultDateForSelectedMonth():old.date,false);
-        Spinner cat=spinner(cats,old==null?"购物":old.category);
-        Spinner wallet=spinner(wallets,old==null?"个人":old.wallet);
-        box.addView(labeledInput("金额（日元）",amount)); box.addView(labeledInput("商家或备注",merchant)); box.addView(labeledInput("日期",date));
-        box.addView(text("支出分类",14,true)); box.addView(cat); box.addView(text("从哪个钱包支出",14,true)); box.addView(wallet);
-        new AlertDialog.Builder(this).setTitle(old==null?"新增日常支出":"确认/编辑流水").setView(box).setNegativeButton("取消",null).setPositiveButton("保存",(d,w)->{
-            try{
-                long a=Long.parseLong(amount.getText().toString().trim()); if(a<=0)return;
-                List<LedgerStore.Tx> list=LedgerStore.load(this); LedgerStore.Tx t=old==null?new LedgerStore.Tx():old;
-                if(old==null){t.id="manual:"+System.currentTimeMillis();t.source="手动";t.raw="";}
-                t.amount=a;t.merchant=merchant.getText().toString().trim();t.date=date.getText().toString().trim();t.category=(String)cat.getSelectedItem();t.wallet=(String)wallet.getSelectedItem();t.pending=false;
-                if(old!=null) list.removeIf(x->x.id.equals(old.id)); list.add(t); LedgerStore.save(this,list); showDashboard();
-            }catch(Exception ignored){}
-        }).show();
-    }
-
-    private long parseAmount(EditText e){ String s=e.getText().toString().trim().replace(",",""); return s.isEmpty()?0:Long.parseLong(s); }
-    private EditText moneyField(JSONObject p,String key){ return input("0",String.valueOf(p.optLong(key,0)),true); }
-    private void addMoneyField(String label,String key,JSONObject p,Map<String,EditText> fields){ EditText e=moneyField(p,key); fields.put(key,e); content.addView(labeledInput(label,e)); }
-
-    private JSONObject effectivePlan(String month){
-        JSONObject p=LedgerStore.plan(this,month);
-        if(LedgerStore.hasPlan(this,month))return p;
-        String previous=LedgerStore.shiftMonth(month,-1); JSONObject prev=LedgerStore.plan(this,previous);
-        JSONObject draft=new JSONObject();
-        try{
-            if(LedgerStore.hasPlan(this,previous)){
-                draft.put("personalPreviousBalance",personalEnd(previous,prev));
-                draft.put("sharedPreviousBalance",sharedEnd(previous,prev));
-                draft.put("sharedTransfer",0);
-                for(String k:CARRY_KEYS)draft.put(k,prev.optLong(k));
+        content.addView(text("添加包装食品", 19, true));
+        LinearLayout form = box();
+        EditText name = input("食品名称", false);
+        EditText brand = input("品牌（可选）", false);
+        Spinner basis = spinner(new String[]{"每100克", "每100毫升", "每1份（1袋/1盒/1个）"}, "每100克");
+        TextView hint = muted("下面填写的是每100克的营养值。");
+        EditText serving = input("一份约多少克/毫升（可选）", true);
+        EditText kcal = input("热量 kcal", true);
+        EditText protein = input("蛋白质 g", true);
+        EditText fat = input("脂肪 g", true);
+        EditText carb = input("碳水 g", true);
+        EditText fiber = input("膳食纤维 g", true);
+        EditText sodium = input("钠 mg", true);
+        form.addView(name); form.addView(brand); form.addView(text("营养标签的计量基准",13,true));
+        form.addView(basis); form.addView(hint); form.addView(serving); serving.setVisibility(View.GONE);
+        for (View x : new View[]{kcal,protein,fat,carb,fiber,sodium}) form.addView(x);
+        basis.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                String selected=String.valueOf(p.getItemAtPosition(pos));
+                boolean perServing=selected.startsWith("每1份");
+                serving.setVisibility(perServing?View.VISIBLE:View.GONE);
+                hint.setText(perServing?"下面填写的是1整份的全部营养值。保存后不会换算，也不会×100。":
+                        (selected.contains("毫升")?"下面填写的是每100毫升的营养值。":"下面填写的是每100克的营养值。"));
             }
-        }catch(Exception ignored){}
-        return draft;
+            public void onNothingSelected(AdapterView<?> p) {}
+        });
+        Button save=button("保存到食物库");
+        save.setOnClickListener(v->{
+            String n=name.getText().toString().trim();
+            if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"请填写食品名称和热量",Toast.LENGTH_SHORT).show();return;}
+            String selected=String.valueOf(basis.getSelectedItem());
+            String code=selected.startsWith("每1份")?NutritionData.Food.BASIS_SERVING:
+                    (selected.contains("毫升")?NutritionData.Food.BASIS_100ML:NutritionData.Food.BASIS_100G);
+            NutritionData.Food food=new NutritionData.Food("c"+System.currentTimeMillis(),n,
+                    brand.getText().toString().trim(),"我的食品",parse(kcal),parse(protein),parse(fat),parse(carb),
+                    parse(fiber),parse(sodium),code,NutritionData.Food.BASIS_SERVING.equals(code)?parse(serving):100d);
+            customFoods.add(0,food); NutritionData.saveCustomFoods(this,customFoods);
+            customFoods=NutritionData.loadCustomFoods(this);
+            NutritionData.Food stored=customFoods.isEmpty()?food:customFoods.get(0);
+            Toast.makeText(this,"已保存："+one(stored.kcal)+" kcal"+stored.basisSuffix(),Toast.LENGTH_LONG).show();
+            showScreen();
+        });
+        form.addView(save); content.addView(form);
+
+        content.addView(text("我的套餐",19,true));
+        boolean hasCombo=false;
+        for(NutritionData.Food f:new ArrayList<>(customFoods))if(f.isCombo()){addFoodCard(f);hasCombo=true;}
+        if(!hasCombo) content.addView(muted("还没有套餐。点击上方“创建餐食套餐”开始添加。"));
+
+        content.addView(text("我的包装食品",19,true));
+        boolean hasFood=false;
+        for(NutritionData.Food f:new ArrayList<>(customFoods))if(!f.isCombo()){addFoodCard(f);hasFood=true;}
+        if(!hasFood) content.addView(muted("还没有自定义包装食品。"));
     }
 
-    private void showPlan(){
-        currentScreen="规划"; clear(); JSONObject p=effectivePlan(selectedMonth); Map<String,EditText> fields=new LinkedHashMap<>();
-        content.addView(text(monthDisplay(selectedMonth)+"双钱包资金规划",20,true));
-        content.addView(muted("个人钱包和公用钱包分别结算。新月份会自动带入两个钱包上一月的预计余额。"));
-
-        sectionTitle("1　上月结余","两个钱包分别填写；公用钱包支出会从公用余额中扣除。");
-        addMoneyField("个人钱包上月结余","personalPreviousBalance",p,fields);
-        addMoneyField("公用钱包上月结余","sharedPreviousBalance",p,fields);
-
-        sectionTitle("2　本月收入","工资等收入默认进入个人钱包。");
-        addMoneyField("工资","salary",p,fields);
-        addMoneyField("交通费补贴","transportAllowance",p,fields);
-        addMoneyField("奖金","bonus",p,fields);
-        addMoneyField("额外收入","extraIncome",p,fields);
-
-        sectionTitle("3　转入公用钱包","从个人钱包移到公用钱包，不会计入收入或支出。");
-        addMoneyField("本月转入公用钱包","sharedTransfer",p,fields);
-
-        List<LedgerStore.FixedExpense> fixedItems=LedgerStore.fixedExpenses(this,selectedMonth);
-        sectionTitle("4　固定支出规则","可以自由新增、改名、修改金额、选择个人或公用钱包。保存后从本月起自动用于以后每个月，直到在更晚月份再次修改。");
-        String effective=LedgerStore.fixedExpenseEffectiveMonth(this,selectedMonth);
-        if(!effective.isEmpty()) content.addView(muted("当前采用 "+monthDisplay(effective)+" 开始生效的固定支出设定。"));
-        long pf=0,sf=0;
-        for(LedgerStore.FixedExpense item:fixedItems){
-            if("公用".equals(item.wallet))sf+=item.amount;else pf+=item.amount;
-            content.addView(text(item.name+"　"+yen.format(item.amount)+"　·　"+item.wallet+"钱包",15,false));
+    private void addFoodCard(NutritionData.Food f){
+        LinearLayout card=box(),row=new LinearLayout(this),detail=new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL); detail.setOrientation(LinearLayout.VERTICAL);
+        detail.addView(text(f.name,15,true));
+        String meta;
+        if(f.isCombo()){
+            meta="套餐 · "+one(f.kcal)+" kcal/份 · "+comboWeightSummary(f.components,1d);
+            detail.addView(muted(meta)); detail.addView(muted(componentSummary(f.components,1d)));
+        }else{
+            meta=(f.brand.isEmpty()?"自定义":f.brand)+" · "+one(f.kcal)+" kcal"+f.basisSuffix();
+            if(f.isPerServing()&&f.servingSize>0) meta+=" · 1份约"+one(f.servingSize)+"克/毫升";
+            detail.addView(muted(meta));
         }
-        if(fixedItems.isEmpty())content.addView(muted("当前没有固定支出项目。"));
-        content.addView(text("个人钱包固定支出合计　"+yen.format(pf)+"\n公用钱包固定支出合计　"+yen.format(sf),15,true));
-
-        Button editFixed=button("编辑固定支出规则"); editFixed.setOnClickListener(v->{
-            try{
-                JSONObject o=new JSONObject();
-                for(Map.Entry<String,EditText> e:fields.entrySet())o.put(e.getKey(),parseAmount(e.getValue()));
-                LedgerStore.savePlan(this,selectedMonth,o);
-                currentScreen="固定支出"; showFixedExpenses();
-            }catch(Exception e){Toast.makeText(this,"请先检查规划中的金额",Toast.LENGTH_SHORT).show();}
-        }); content.addView(editFixed);
-
-        sectionTitle("5　计算预览","日常流水按钱包分别扣款；固定支出使用当前月份生效的规则。");
-        TextView preview=text("",16,true); content.addView(preview);
-        Runnable updatePreview=()->{
-            try{
-                JSONObject draft=new JSONObject(); for(Map.Entry<String,EditText> e:fields.entrySet())draft.put(e.getKey(),parseAmount(e.getValue()));
-                long pi=incomeTotal(draft),personalFixed=personalFixedTotal(selectedMonth),sharedFixed=sharedFixedTotal(selectedMonth);
-                long pv=variableExpense(selectedMonth,"个人"),sv=variableExpense(selectedMonth,"公用");
-                long pe=personalEnd(selectedMonth,draft),se=sharedEnd(selectedMonth,draft);
-                preview.setText("个人钱包固定支出　"+yen.format(personalFixed)+"\n公用钱包固定支出　"+yen.format(sharedFixed)+
-                        "\n个人钱包日常支出　"+yen.format(pv)+"\n公用钱包日常支出　"+yen.format(sv)+
-                        "\n个人钱包预计余额　"+yen.format(pe)+"\n公用钱包预计余额　"+yen.format(se)+
-                        "\n两个钱包合计　"+yen.format(pe+se)+"\n本月收入　"+yen.format(pi)+
-                        "\n本月实际存款变化　"+yen.format(pi-personalFixed-sharedFixed-pv-sv));
-            }catch(Exception ignored){preview.setText("请输入整数金额");}
-        };
-        Button calculate=button("重新计算预览"); calculate.setOnClickListener(v->updatePreview.run()); content.addView(calculate); updatePreview.run();
-
-        Button save=button("保存本月规划");save.setOnClickListener(v->{
-            try{
-                JSONObject o=new JSONObject(); for(Map.Entry<String,EditText> e:fields.entrySet())o.put(e.getKey(),parseAmount(e.getValue()));
-                LedgerStore.savePlan(this,selectedMonth,o); Toast.makeText(this,"已保存 "+monthDisplay(selectedMonth)+"规划",Toast.LENGTH_SHORT).show(); showDashboard();
-            }catch(Exception e){Toast.makeText(this,"请输入整数金额",Toast.LENGTH_SHORT).show();}
-        });content.addView(save);
+        Button info=button("详情"); info.setOnClickListener(v->showFoodDetails(f));
+        Button add=button("记录"); add.setOnClickListener(v->showAmountDialog(f,"加餐"));
+        Button del=button("删除"); del.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("删除"+f.name)
+                .setMessage("只会删除保存的食品或套餐，不会删除已经记录到日期中的内容。")
+                .setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->{customFoods.remove(f);NutritionData.saveCustomFoods(this,customFoods);showScreen();}).show());
+        row.addView(detail,new LinearLayout.LayoutParams(0,-2,1)); row.addView(info); row.addView(add); row.addView(del); card.addView(row); content.addView(card);
     }
 
-    private void showFixedExpenses(){
-        currentScreen="固定支出"; clear();
-        content.addView(text(monthDisplay(selectedMonth)+"固定支出规则",20,true));
-        content.addView(muted("这里保存的是一整套固定支出设定。从 "+monthDisplay(selectedMonth)+" 起，每个月自动使用这套设定；以后在其他月份修改时，再从那个新月份起改用新设定。"));
-        Button back=button("返回资金规划"); back.setOnClickListener(v->{currentScreen="规划";showPlan();}); content.addView(back);
-        Button add=button("＋ 新增固定支出"); add.setOnClickListener(v->editFixedExpense(null)); content.addView(add);
-
-        List<LedgerStore.FixedExpense> items=LedgerStore.fixedExpenses(this,selectedMonth);
-        if(items.isEmpty()){ content.addView(text("暂无固定支出项目。",16,false)); return; }
-
-        long personal=0,shared=0;
-        for(LedgerStore.FixedExpense item:items){
-            if("公用".equals(item.wallet))shared+=item.amount;else personal+=item.amount;
-            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(18,12,18,12); row.setBackgroundColor(Color.WHITE);
-            row.addView(text(item.name,17,true));
-            row.addView(text(yen.format(item.amount)+" · "+item.wallet+"钱包",15,false));
-            LinearLayout actions=new LinearLayout(this);
-            Button edit=button("编辑"); edit.setOnClickListener(v->editFixedExpense(item)); actions.addView(edit);
-            Button del=button("删除"); del.setOnClickListener(v->new AlertDialog.Builder(this)
-                    .setTitle("删除固定支出？")
-                    .setMessage(item.name+" 将从 "+monthDisplay(selectedMonth)+" 起不再计入固定支出。历史月份不会改变。")
-                    .setNegativeButton("取消",null)
-                    .setPositiveButton("删除",(d,w)->{
-                        List<LedgerStore.FixedExpense> changed=new ArrayList<>(LedgerStore.fixedExpenses(this,selectedMonth));
-                        changed.removeIf(x->x.id.equals(item.id));
-                        LedgerStore.saveFixedExpensesFromMonth(this,selectedMonth,changed);
-                        showFixedExpenses();
-                    }).show());
-            actions.addView(del); row.addView(actions);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,12);content.addView(row,lp);
-        }
-        sectionTitle("本月起每月固定扣除","");
-        content.addView(text("个人钱包　"+yen.format(personal)+"\n公用钱包　"+yen.format(shared)+"\n合计　"+yen.format(personal+shared),16,true));
+    @Override protected void showSettings(){
+        content.addView(text("每日营养计划",21,true));
+        content.addView(muted("设置热量上限和三大营养素热量比例，目标克数会自动计算。"));
+        LinearLayout form=box();
+        form.addView(text("每日热量上限",14,true));
+        EditText kcal=goalInput("热量 kcal",goal.kcal); form.addView(kcal);
+        form.addView(text("三大营养素热量比例",14,true));
+        EditText pp=goalInput("蛋白质 %",goal.proteinPercent),fp=goalInput("脂肪 %",goal.fatPercent),cp=goalInput("碳水 %",goal.carbPercent);
+        form.addView(pp);form.addView(fp);form.addView(cp);
+        TextView status=text("",14,true),calculated=muted(""); form.addView(status);form.addView(calculated);
+        form.addView(text("其他目标",14,true));
+        EditText fiber=goalInput("膳食纤维 g",goal.fiber),sodium=goalInput("钠 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
+        Runnable preview=()->updatePlanPreview(kcal,pp,fp,cp,status,calculated);
+        for(EditText e:new EditText[]{kcal,pp,fp,cp})e.addTextChangedListener(new SimpleWatcher(preview)); preview.run();
+        Button save=button("保存计划"); save.setOnClickListener(v->{
+            double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp);
+            if(energy<=0){Toast.makeText(this,"请填写大于0的热量上限",Toast.LENGTH_SHORT).show();return;}
+            if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"蛋白质、脂肪、碳水比例合计必须为100%",Toast.LENGTH_LONG).show();return;}
+            goal.kcal=energy;goal.proteinPercent=p;goal.fatPercent=f;goal.carbPercent=c;
+            goal.fiber=valueOr(fiber,25);goal.sodium=valueOr(sodium,2000);goal.recalculateMacros();NutritionData.saveGoal(this,goal);
+            Toast.makeText(this,"已保存：蛋白"+one(goal.protein)+"g · 脂肪"+one(goal.fat)+"g · 碳水"+one(goal.carb)+"g",Toast.LENGTH_LONG).show();showScreen();
+        });
+        form.addView(save);content.addView(form);
+        LinearLayout note=box(); note.addView(text("计算方式",16,true));
+        note.addView(muted("蛋白质和碳水按4 kcal/g计算，脂肪按9 kcal/g计算。比例指各营养素提供的热量占每日总热量的比例。"));
+        Button clear=button("清空全部数据");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("清空数据")
+                .setMessage("确定清空全部饮食记录、自定义食品、套餐和目标设置吗？").setNegativeButton("取消",null)
+                .setPositiveButton("清空",(d,w)->{NutritionData.clear(this);reload();screen="今日";showScreen();}).show());
+        note.addView(clear);content.addView(note);
     }
 
-    private void editFixedExpense(LedgerStore.FixedExpense old){
-        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(30,10,30,0);
-        EditText name=input("例如：房租",old==null?"":old.name,false);
-        EditText amount=input("例如：80000",old==null?"":String.valueOf(old.amount),true);
-        Spinner wallet=spinner(wallets,old==null?"个人":old.wallet);
-        box.addView(labeledInput("固定支出名称",name));
-        box.addView(labeledInput("每月金额（日元）",amount));
-        box.addView(text("从哪个钱包扣除",14,true)); box.addView(wallet);
-
-        new AlertDialog.Builder(this).setTitle(old==null?"新增固定支出":"编辑固定支出").setView(box)
-                .setNegativeButton("取消",null)
-                .setPositiveButton("保存",(d,w)->{
-                    try{
-                        String fixedName=name.getText().toString().trim();
-                        long fixedAmount=parseAmount(amount);
-                        if(fixedName.isEmpty()||fixedAmount<=0){
-                            Toast.makeText(this,"请输入名称和大于0的金额",Toast.LENGTH_SHORT).show(); return;
-                        }
-                        List<LedgerStore.FixedExpense> changed=new ArrayList<>(LedgerStore.fixedExpenses(this,selectedMonth));
-                        String id=old==null?"fixed:"+System.currentTimeMillis():old.id;
-                        if(old!=null)changed.removeIf(x->x.id.equals(old.id));
-                        changed.add(new LedgerStore.FixedExpense(id,fixedName,fixedAmount,(String)wallet.getSelectedItem()));
-                        LedgerStore.saveFixedExpensesFromMonth(this,selectedMonth,changed);
-                        showFixedExpenses();
-                    }catch(Exception ignored){Toast.makeText(this,"请输入整数金额",Toast.LENGTH_SHORT).show();}
-                }).show();
+    private void updatePlanPreview(EditText kcal,EditText pp,EditText fp,EditText cp,TextView status,TextView out){
+        double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp),total=p+f+c;
+        boolean valid=energy>0&&Math.abs(total-100d)<0.05d;
+        status.setText("比例合计 "+one(total)+"%"+(valid?" ✓":"（需要为100%）"));
+        status.setTextColor(valid?GREEN:Color.rgb(190,65,55));
+        out.setText("自动计算目标：\n蛋白质 "+one(energy*p/400d)+"g（"+one(energy*p/100d)+" kcal）\n脂肪 "+
+                one(energy*f/900d)+"g（"+one(energy*f/100d)+" kcal）\n碳水 "+one(energy*c/400d)+"g（"+one(energy*c/100d)+" kcal）");
     }
 
-    private boolean notificationAccessEnabled(){
-        String enabled=Settings.Secure.getString(getContentResolver(),"enabled_notification_listeners");
-        return enabled!=null&&enabled.contains(getPackageName());
-    }
-
-    private void showSettings(){
-        currentScreen="设置"; clear(); content.addView(text("设置与通知诊断",20,true));
-        content.addView(text("应用没有网络权限。账本和诊断中的通知文本只保存在本机。诊断模式默认记录最近30条通知，便于确认系统有没有把 Google 钱包通知交给应用。",16,false));
-        card("通知使用权",notificationAccessEnabled()?"已开启":"未开启");
-        card("监听服务状态",LedgerStore.listenerState(this));
-
-        Button access=button("打开通知使用权设置"); access.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))); content.addView(access);
-        Button rebind=button("重新连接通知监听服务"); rebind.setOnClickListener(v->{
-            NotificationListenerService.requestRebind(new ComponentName(this,WalletNotificationListenerV2.class));
-            Toast.makeText(this,"已请求重新连接；几秒后返回此页面查看状态",Toast.LENGTH_LONG).show();
-        }); content.addView(rebind);
-
-        boolean diagnostic=LedgerStore.diagnosticsEnabled(this);
-        Button toggle=button(diagnostic?"关闭通知诊断记录":"开启通知诊断记录"); toggle.setOnClickListener(v->{
-            LedgerStore.setDiagnosticsEnabled(this,!LedgerStore.diagnosticsEnabled(this)); showSettings();
-        }); content.addView(toggle);
-        Button logs=button("查看最近通知诊断"); logs.setOnClickListener(v->{currentScreen="诊断";showDiagnostics();}); content.addView(logs);
-
-        Button test=button("测试金额解析（¥1,280）"); test.setOnClickListener(v->{
-            long amount=WalletNotificationListener.parseAmount("Google Wallet お支払い ¥1,280 テスト商店");
-            LedgerStore.Tx t=new LedgerStore.Tx(); t.id="test:"+System.currentTimeMillis(); t.date=LedgerStore.today(); t.amount=amount;
-            t.merchant="测试商家";t.category="购物";t.wallet="个人";t.source="解析测试";t.raw="Google Wallet お支払い ¥1,280";t.pending=true;
-            LedgerStore.addIfNew(this,t); showTransactions(true);
-        }); content.addView(test);
-
-        Button clear=button("清空全部本地数据");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("确认清空？").setMessage("该操作会删除全部流水、各月份规划和通知诊断，无法撤销。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{LedgerStore.clearAll(this);showDashboard();}).show());content.addView(clear);
-    }
-
-    private void showDiagnostics(){
-        currentScreen="诊断"; clear(); content.addView(text("最近通知诊断",20,true));
-        content.addView(muted("先确认“监听服务状态”显示已连接。下一次支付后回到这里：如果能看到通知但金额为0，就是文本格式问题；完全没有记录则是系统没有把通知交给监听服务。"));
-        Button back=button("返回设置"); back.setOnClickListener(v->{currentScreen="设置";showSettings();}); content.addView(back);
-        Button clearLogs=button("清空诊断记录"); clearLogs.setOnClickListener(v->{LedgerStore.clearDiagnostics(this);showDiagnostics();}); content.addView(clearLogs);
-
-        JSONArray a=LedgerStore.diagnostics(this);
-        if(a.length()==0){ content.addView(text("尚无通知记录。请保持诊断开启，然后让任意应用产生一条普通通知；这样也能测试监听服务是否真的工作。",16,false)); return; }
-        SimpleDateFormat f=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.JAPAN);
-        for(int i=0;i<a.length();i++){
-            JSONObject o=a.optJSONObject(i); if(o==null)continue;
-            LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(18,12,18,12);row.setBackgroundColor(Color.WHITE);
-            row.addView(text(o.optString("title","（无标题）"),16,true));
-            row.addView(muted(f.format(new Date(o.optLong("time")))+"\n来源包名："+o.optString("package")));
-            long amount=o.optLong("amount");
-            row.addView(text("识别金额："+(amount>0?yen.format(amount):"未识别")+"\n结果："+o.optString("reason"),14,false));
-            String detail=o.optString("detail"); if(!detail.isEmpty())row.addView(muted(detail));
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,0,0,12);content.addView(row,lp);
-        }
-    }
+    private EditText goalInput(String hint,double value){EditText e=input(hint,true);e.setText(one(value));return e;}
 }

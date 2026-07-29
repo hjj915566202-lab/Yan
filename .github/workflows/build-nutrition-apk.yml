@@ -1,0 +1,103 @@
+name: Build Nutrition Ledger APK
+
+on:
+  push:
+    branches:
+      - nutrition-ledger-build
+    paths:
+      - 'app/**'
+      - 'tools/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'nutrition-ledger.jks.b64'
+      - '.github/workflows/build-nutrition-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'tools/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'nutrition-ledger.jks.b64'
+      - '.github/workflows/build-nutrition-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Prepare China food composition asset
+        run: |
+          rm -rf /tmp/china-food-composition-data
+          mkdir -p /tmp/china-food-composition-data
+          git -C /tmp/china-food-composition-data init
+          git -C /tmp/china-food-composition-data remote add origin https://github.com/Sanotsu/china-food-composition-data.git
+          git -C /tmp/china-food-composition-data sparse-checkout init --cone
+          git -C /tmp/china-food-composition-data sparse-checkout set json_data_vision_251206_Qwen2-5-VL-72B-Instruct
+          git -C /tmp/china-food-composition-data fetch --depth 1 origin 095034a96376d893582b412900fa8fdf792b4194
+          git -C /tmp/china-food-composition-data checkout FETCH_HEAD
+          python3 tools/build_china_food_asset.py \
+            /tmp/china-food-composition-data/json_data_vision_251206_Qwen2-5-VL-72B-Instruct \
+            app/src/main/assets/china_food_composition.json
+          python3 - <<'PY'
+          import json, math
+          path='app/src/main/assets/china_food_composition.json'
+          data=json.load(open(path,encoding='utf-8'))
+          assert data['count'] >= 1600, data['count']
+          bad=[]
+          def walk(value, path='root'):
+              if isinstance(value, float) and not math.isfinite(value):
+                  bad.append(path)
+              elif isinstance(value, dict):
+                  for key, item in value.items(): walk(item, f'{path}.{key}')
+              elif isinstance(value, list):
+                  for index, item in enumerate(value): walk(item, f'{path}[{index}]')
+          walk(data)
+          assert not bad, bad[:10]
+          print('validated food count:', data['count'], 'non-finite values: 0')
+          PY
+
+      - name: Restore stable signing key
+        run: base64 --decode nutrition-ledger.jks.b64 > nutrition-ledger.jks
+
+      - name: Build signed debug APK
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK and signature
+        run: |
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutritionLedger-v2.5.0
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
