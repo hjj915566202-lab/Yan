@@ -1,0 +1,228 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index f8f478b..76329d4 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId 'com.offline.ledger'
+         minSdk 26
+         targetSdk 35
+-        versionCode 5
+-        versionName '1.4.0'
++        versionCode 6
++        versionName '1.5.0'
+     }
+ 
+     buildTypes {
+diff --git a/app/src/main/java/com/offline/ledger/LedgerStore.java b/app/src/main/java/com/offline/ledger/LedgerStore.java
+index 02855ba..a04a931 100644
+--- a/app/src/main/java/com/offline/ledger/LedgerStore.java
++++ b/app/src/main/java/com/offline/ledger/LedgerStore.java
+@@ -17,6 +17,7 @@ public final class LedgerStore {
+     private static final String LEGACY_PLAN = "plan";
+     private static final String FIXED_SNAPSHOTS = "fixed_expense_snapshots";
+     private static final String FIXED_MIGRATED = "fixed_expense_snapshots_migrated";
++    private static final String CREDIT_CARD_CUTOFF = "credit_card_monthly_cutoff";
+     private static final String DIAGNOSTICS = "notification_diagnostics";
+     private static final String LISTENER_STATE = "notification_listener_state";
+     private static final String DIAGNOSTICS_ENABLED = "notification_diagnostics_enabled";
+@@ -126,6 +127,8 @@ public final class LedgerStore {
+         }
+         if(!p.has("sharedPreviousBalance")) { p.put("sharedPreviousBalance",0); changed=true; }
+         if(!p.has("sharedTransfer")) { p.put("sharedTransfer",0); changed=true; }
++        if(!p.has("creditCardPayment") && p.has("creditCard")) { p.put("creditCardPayment",p.optLong("creditCard",0)); changed=true; }
++        if(p.has("creditCard")) { p.remove("creditCard"); changed=true; }
+         if(p.has("previousBalance")) { p.remove("previousBalance"); changed=true; }
+         return changed;
+     }
+@@ -138,7 +141,10 @@ public final class LedgerStore {
+             String effective=findEffectiveMonth(snapshots,month);
+             if(effective.isEmpty()) return out;
+             JSONArray a=snapshots.optJSONArray(effective);
+-            if(a!=null) for(int i=0;i<a.length();i++) out.add(FixedExpense.from(a.getJSONObject(i)));
++            if(a!=null) for(int i=0;i<a.length();i++) {
++                FixedExpense item=FixedExpense.from(a.getJSONObject(i));
++                if(!isCreditCardExpense(item))out.add(item);
++            }
+         } catch(Exception ignored) {}
+         return out;
+     }
+@@ -155,7 +161,9 @@ public final class LedgerStore {
+         migrateFixedExpensesIfNeeded(c);
+         try {
+             JSONObject snapshots=new JSONObject(c.getSharedPreferences(PREFS,0).getString(FIXED_SNAPSHOTS,"{}"));
+-            snapshots.put(month,fixedArray(items));
++            JSONArray cleaned=new JSONArray();
++            for(FixedExpense item:items)if(!isCreditCardExpense(item))cleaned.put(item.json());
++            snapshots.put(month,cleaned);
+             c.getSharedPreferences(PREFS,0).edit()
+                     .putString(FIXED_SNAPSHOTS,snapshots.toString())
+                     .putBoolean(FIXED_MIGRATED,true).apply();
+@@ -178,6 +186,42 @@ public final class LedgerStore {
+         return a;
+     }
+ 
++    private static boolean isCreditCardExpense(FixedExpense item) {
++        if(item==null)return false;
++        return "legacy:creditCard".equals(item.id) || "信用卡还款".equals(item.name);
++    }
++
++    public static long creditCardPayment(Context c,String month) {
++        migrateLegacyPlanIfNeeded(c);
++        migrateFixedExpensesIfNeeded(c);
++        try {
++            JSONObject plans=new JSONObject(c.getSharedPreferences(PREFS,0).getString(PLANS,"{}"));
++            JSONObject plan=plans.optJSONObject(month);
++            if(plan!=null) {
++                normalizePlan(plan);
++                if(plan.has("creditCardPayment"))return plan.optLong("creditCardPayment",0);
++            }
++
++            String cutoff=c.getSharedPreferences(PREFS,0).getString(CREDIT_CARD_CUTOFF,"");
++            if(cutoff.isEmpty()) {
++                cutoff=monthNow();
++                c.getSharedPreferences(PREFS,0).edit().putString(CREDIT_CARD_CUTOFF,cutoff).apply();
++            }
++            if(month.compareTo(cutoff)>0)return 0;
++
++            JSONObject snapshots=new JSONObject(c.getSharedPreferences(PREFS,0).getString(FIXED_SNAPSHOTS,"{}"));
++            String effective=findEffectiveMonth(snapshots,month);
++            if(effective.isEmpty())return 0;
++            JSONArray items=snapshots.optJSONArray(effective);
++            if(items==null)return 0;
++            for(int i=0;i<items.length();i++) {
++                FixedExpense item=FixedExpense.from(items.getJSONObject(i));
++                if(isCreditCardExpense(item))return item.amount;
++            }
++        } catch(Exception ignored) {}
++        return 0;
++    }
++
+     private static synchronized void migrateFixedExpensesIfNeeded(Context c) {
+         if(c.getSharedPreferences(PREFS,0).getBoolean(FIXED_MIGRATED,false)) return;
+         migrateLegacyPlanIfNeeded(c);
+@@ -270,7 +314,7 @@ public final class LedgerStore {
+ 
+     public static synchronized void clearAll(Context c) {
+         c.getSharedPreferences(PREFS,0).edit().remove(TX).remove(PLANS).remove(LEGACY_PLAN)
+-                .remove(FIXED_SNAPSHOTS).remove(FIXED_MIGRATED)
++                .remove(FIXED_SNAPSHOTS).remove(FIXED_MIGRATED).remove(CREDIT_CARD_CUTOFF)
+                 .remove(DIAGNOSTICS).remove(LISTENER_STATE).apply();
+     }
+ 
+diff --git a/app/src/main/java/com/offline/ledger/MainActivity.java b/app/src/main/java/com/offline/ledger/MainActivity.java
+index 7272d9e..1006f67 100644
+--- a/app/src/main/java/com/offline/ledger/MainActivity.java
++++ b/app/src/main/java/com/offline/ledger/MainActivity.java
+@@ -120,10 +120,11 @@ public class MainActivity extends Activity {
+         }
+         return total;
+     }
+-    private long personalFixedTotal(String month){ return fixedTotal(month,"个人"); }
++    private long personalRecurringFixedTotal(String month){ return fixedTotal(month,"个人"); }
++    private long personalFixedTotal(String month,JSONObject p){ return personalRecurringFixedTotal(month)+p.optLong("creditCardPayment"); }
+     private long sharedFixedTotal(String month){ return fixedTotal(month,"公用"); }
+     private long personalEnd(String month,JSONObject p){
+-        return p.optLong("personalPreviousBalance")+incomeTotal(p)-personalFixedTotal(month)-variableExpense(month,"个人")-p.optLong("sharedTransfer");
++        return p.optLong("personalPreviousBalance")+incomeTotal(p)-personalFixedTotal(month,p)-variableExpense(month,"个人")-p.optLong("sharedTransfer");
+     }
+     private long sharedEnd(String month,JSONObject p){
+         return p.optLong("sharedPreviousBalance")+p.optLong("sharedTransfer")-sharedFixedTotal(month)-variableExpense(month,"公用");
+@@ -139,7 +140,7 @@ public class MainActivity extends Activity {
+             for(int i=0;i<cats.length;i++)if(cats[i].equals(t.category))by[i]+=t.amount;
+         }
+         JSONObject plan=effectivePlan(selectedMonth);
+-        long income=incomeTotal(plan), personalFixed=personalFixedTotal(selectedMonth), sharedFixed=sharedFixedTotal(selectedMonth);
++        long income=incomeTotal(plan), personalFixed=personalFixedTotal(selectedMonth,plan), sharedFixed=sharedFixedTotal(selectedMonth);
+         long personalEnd=personalEnd(selectedMonth,plan), sharedEnd=sharedEnd(selectedMonth,plan);
+         long totalExpense=personalExpense+sharedExpense+personalFixed+sharedFixed;
+ 
+@@ -157,6 +158,7 @@ public class MainActivity extends Activity {
+         content.addView(text("个人钱包日常支出　"+yen.format(personalExpense),16,false));
+         content.addView(text("公用钱包日常支出　"+yen.format(sharedExpense),16,false));
+         content.addView(text("个人钱包固定支出　"+yen.format(personalFixed),16,false));
++        content.addView(muted("其中本月信用卡还款　"+yen.format(plan.optLong("creditCardPayment"))));
+         content.addView(text("公用钱包固定支出　"+yen.format(sharedFixed),16,false));
+ 
+         sectionTitle("上月结余与转账","");
+@@ -226,6 +228,9 @@ public class MainActivity extends Activity {
+ 
+     private JSONObject effectivePlan(String month){
+         JSONObject p=LedgerStore.plan(this,month);
++        try{
++            if(!p.has("creditCardPayment"))p.put("creditCardPayment",LedgerStore.creditCardPayment(this,month));
++        }catch(Exception ignored){}
+         if(LedgerStore.hasPlan(this,month))return p;
+         String previous=LedgerStore.shiftMonth(month,-1); JSONObject prev=LedgerStore.plan(this,previous);
+         JSONObject draft=new JSONObject();
+@@ -236,6 +241,7 @@ public class MainActivity extends Activity {
+                 draft.put("sharedTransfer",0);
+                 for(String k:CARRY_KEYS)draft.put(k,prev.optLong(k));
+             }
++            draft.put("creditCardPayment",LedgerStore.creditCardPayment(this,month));
+         }catch(Exception ignored){}
+         return draft;
+     }
+@@ -258,8 +264,11 @@ public class MainActivity extends Activity {
+         sectionTitle("3　转入公用钱包","从个人钱包移到公用钱包，不会计入收入或支出。");
+         addMoneyField("本月转入公用钱包","sharedTransfer",p,fields);
+ 
++        sectionTitle("4　信用卡还款","信用卡账单每个月不同，只用于当前月份，不会自动带入下个月；从个人钱包扣除。");
++        addMoneyField("本月信用卡还款","creditCardPayment",p,fields);
++
+         List<LedgerStore.FixedExpense> fixedItems=LedgerStore.fixedExpenses(this,selectedMonth);
+-        sectionTitle("4　固定支出规则","可以自由新增、改名、修改金额、选择个人或公用钱包。保存后从本月起自动用于以后每个月，直到在更晚月份再次修改。");
++        sectionTitle("5　长期固定支出规则","房租、保险等金额稳定的项目放在这里。保存后从本月起自动用于以后每个月，直到在更晚月份再次修改。信用卡还款请使用上面的本月输入框。");
+         String effective=LedgerStore.fixedExpenseEffectiveMonth(this,selectedMonth);
+         if(!effective.isEmpty()) content.addView(muted("当前采用 "+monthDisplay(effective)+" 开始生效的固定支出设定。"));
+         long pf=0,sf=0;
+@@ -279,15 +288,15 @@ public class MainActivity extends Activity {
+             }catch(Exception e){Toast.makeText(this,"请先检查规划中的金额",Toast.LENGTH_SHORT).show();}
+         }); content.addView(editFixed);
+ 
+-        sectionTitle("5　计算预览","日常流水按钱包分别扣款；固定支出使用当前月份生效的规则。");
++        sectionTitle("6　计算预览","日常流水按钱包分别扣款；长期固定支出使用当前月份生效的规则，信用卡还款只使用本月金额。");
+         TextView preview=text("",16,true); content.addView(preview);
+         Runnable updatePreview=()->{
+             try{
+                 JSONObject draft=new JSONObject(); for(Map.Entry<String,EditText> e:fields.entrySet())draft.put(e.getKey(),parseAmount(e.getValue()));
+-                long pi=incomeTotal(draft),personalFixed=personalFixedTotal(selectedMonth),sharedFixed=sharedFixedTotal(selectedMonth);
++                long pi=incomeTotal(draft),personalFixed=personalFixedTotal(selectedMonth,draft),sharedFixed=sharedFixedTotal(selectedMonth);
+                 long pv=variableExpense(selectedMonth,"个人"),sv=variableExpense(selectedMonth,"公用");
+                 long pe=personalEnd(selectedMonth,draft),se=sharedEnd(selectedMonth,draft);
+-                preview.setText("个人钱包固定支出　"+yen.format(personalFixed)+"\n公用钱包固定支出　"+yen.format(sharedFixed)+
++                preview.setText("个人钱包固定支出　"+yen.format(personalFixed)+"\n其中信用卡还款　"+yen.format(draft.optLong("creditCardPayment"))+"\n公用钱包固定支出　"+yen.format(sharedFixed)+
+                         "\n个人钱包日常支出　"+yen.format(pv)+"\n公用钱包日常支出　"+yen.format(sv)+
+                         "\n个人钱包预计余额　"+yen.format(pe)+"\n公用钱包预计余额　"+yen.format(se)+
+                         "\n两个钱包合计　"+yen.format(pe+se)+"\n本月收入　"+yen.format(pi)+
+@@ -307,7 +316,7 @@ public class MainActivity extends Activity {
+     private void showFixedExpenses(){
+         currentScreen="固定支出"; clear();
+         content.addView(text(monthDisplay(selectedMonth)+"固定支出规则",20,true));
+-        content.addView(muted("这里保存的是一整套固定支出设定。从 "+monthDisplay(selectedMonth)+" 起，每个月自动使用这套设定；以后在其他月份修改时，再从那个新月份起改用新设定。"));
++        content.addView(muted("这里保存的是长期固定支出设定。从 "+monthDisplay(selectedMonth)+" 起，每个月自动使用；信用卡还款金额请返回规划页按月填写。"));
+         Button back=button("返回资金规划"); back.setOnClickListener(v->{currentScreen="规划";showPlan();}); content.addView(back);
+         Button add=button("＋ 新增固定支出"); add.setOnClickListener(v->editFixedExpense(null)); content.addView(add);
+ 
+@@ -357,6 +366,9 @@ public class MainActivity extends Activity {
+                         if(fixedName.isEmpty()||fixedAmount<=0){
+                             Toast.makeText(this,"请输入名称和大于0的金额",Toast.LENGTH_SHORT).show(); return;
+                         }
++                        if("信用卡还款".equals(fixedName)){
++                            Toast.makeText(this,"信用卡还款请在规划页按月填写",Toast.LENGTH_LONG).show(); return;
++                        }
+                         List<LedgerStore.FixedExpense> changed=new ArrayList<>(LedgerStore.fixedExpenses(this,selectedMonth));
+                         String id=old==null?"fixed:"+System.currentTimeMillis():old.id;
+                         if(old!=null)changed.removeIf(x->x.id.equals(old.id));
+@@ -443,6 +455,12 @@ public class MainActivity extends Activity {
+                 pieTotals.put(label,pieTotals.getOrDefault(label,0L)+amount);
+                 out.fixedTotal+=amount;
+             }
++            long cardAmount=Math.round(LedgerStore.creditCardPayment(this,cursor.toString())*ratio);
++            if(cardAmount>0){
++                String label="固定·信用卡还款（个人）";
++                pieTotals.put(label,pieTotals.getOrDefault(label,0L)+cardAmount);
++                out.fixedTotal+=cardAmount;
++            }
+             cursor=cursor.plusMonths(1);
+         }
+         for(Map.Entry<String,Long> entry:pieTotals.entrySet())if(entry.getValue()>0)out.pie.add(new ExpensePieView.Slice(entry.getKey(),entry.getValue()));
