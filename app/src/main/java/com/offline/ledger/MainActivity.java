@@ -15,103 +15,128 @@ import java.util.ArrayList;
 
 public class MainActivity extends NutritionTrendActivity {
     @Override protected void showCustomFoodScreen() {
-        content.addView(text("\u6dfb\u52a0\u5305\u88c5\u98df\u54c1", 21, true));
+        content.addView(text("自定义食品与套餐", 21, true));
+
+        LinearLayout comboBox = box();
+        comboBox.addView(text("餐食套餐",17,true));
+        comboBox.addView(muted("把多种食材和各自用量合并成1份。记录套餐时会保留食材明细和合计重量。"));
+        Button createCombo = button("＋ 创建餐食套餐"); createCombo.setOnClickListener(v -> showComboBuilder());
+        comboBox.addView(createCombo); content.addView(comboBox);
+
+        content.addView(text("添加包装食品", 19, true));
         LinearLayout form = box();
-        EditText name = input("\u98df\u54c1\u540d\u79f0", false);
-        EditText brand = input("\u54c1\u724c\uff08\u53ef\u9009\uff09", false);
-        Spinner basis = spinner(new String[]{"\u6bcf100\u514b", "\u6bcf100\u6beb\u5347", "\u6bcf1\u4efd\uff081\u888b/1\u76d2/1\u4e2a\uff09"}, "\u6bcf100\u514b");
-        TextView hint = muted("\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u514b\u7684\u8425\u517b\u503c\u3002");
-        EditText serving = input("\u4e00\u4efd\u7ea6\u591a\u5c11\u514b/\u6beb\u5347\uff08\u53ef\u9009\uff09", true);
-        EditText kcal = input("\u70ed\u91cf kcal", true);
-        EditText protein = input("\u86cb\u767d\u8d28 g", true);
-        EditText fat = input("\u8102\u80aa g", true);
-        EditText carb = input("\u78b3\u6c34 g", true);
-        EditText fiber = input("\u81b3\u98df\u7ea4\u7ef4 g", true);
-        EditText sodium = input("\u94a0 mg", true);
-        form.addView(name); form.addView(brand); form.addView(text("\u8425\u517b\u6807\u7b7e\u7684\u8ba1\u91cf\u57fa\u51c6",13,true));
+        EditText name = input("食品名称", false);
+        EditText brand = input("品牌（可选）", false);
+        Spinner basis = spinner(new String[]{"每100克", "每100毫升", "每1份（1袋/1盒/1个）"}, "每100克");
+        TextView hint = muted("下面填写的是每100克的营养值。");
+        EditText serving = input("一份约多少克/毫升（可选）", true);
+        EditText kcal = input("热量 kcal", true);
+        EditText protein = input("蛋白质 g", true);
+        EditText fat = input("脂肪 g", true);
+        EditText carb = input("碳水 g", true);
+        EditText fiber = input("膳食纤维 g", true);
+        EditText sodium = input("钠 mg", true);
+        form.addView(name); form.addView(brand); form.addView(text("营养标签的计量基准",13,true));
         form.addView(basis); form.addView(hint); form.addView(serving); serving.setVisibility(View.GONE);
         for (View x : new View[]{kcal,protein,fat,carb,fiber,sodium}) form.addView(x);
         basis.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                 String selected=String.valueOf(p.getItemAtPosition(pos));
-                boolean perServing=selected.startsWith("\u6bcf1\u4efd");
+                boolean perServing=selected.startsWith("每1份");
                 serving.setVisibility(perServing?View.VISIBLE:View.GONE);
-                hint.setText(perServing?"\u4e0b\u9762\u586b\u5199\u7684\u662f1\u6574\u4efd\u7684\u5168\u90e8\u8425\u517b\u503c\u3002\u4fdd\u5b58\u540e\u4e0d\u4f1a\u6362\u7b97\uff0c\u4e5f\u4e0d\u4f1a\u00d7100\u3002":
-                        (selected.contains("\u6beb\u5347")?"\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u6beb\u5347\u7684\u8425\u517b\u503c\u3002":"\u4e0b\u9762\u586b\u5199\u7684\u662f\u6bcf100\u514b\u7684\u8425\u517b\u503c\u3002"));
+                hint.setText(perServing?"下面填写的是1整份的全部营养值。保存后不会换算，也不会×100。":
+                        (selected.contains("毫升")?"下面填写的是每100毫升的营养值。":"下面填写的是每100克的营养值。"));
             }
             public void onNothingSelected(AdapterView<?> p) {}
         });
-        Button save=button("\u4fdd\u5b58\u5230\u98df\u7269\u5e93");
+        Button save=button("保存到食物库");
         save.setOnClickListener(v->{
             String n=name.getText().toString().trim();
-            if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u98df\u54c1\u540d\u79f0\u548c\u70ed\u91cf",Toast.LENGTH_SHORT).show();return;}
+            if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"请填写食品名称和热量",Toast.LENGTH_SHORT).show();return;}
             String selected=String.valueOf(basis.getSelectedItem());
-            String code=selected.startsWith("\u6bcf1\u4efd")?NutritionData.Food.BASIS_SERVING:
-                    (selected.contains("\u6beb\u5347")?NutritionData.Food.BASIS_100ML:NutritionData.Food.BASIS_100G);
+            String code=selected.startsWith("每1份")?NutritionData.Food.BASIS_SERVING:
+                    (selected.contains("毫升")?NutritionData.Food.BASIS_100ML:NutritionData.Food.BASIS_100G);
             NutritionData.Food food=new NutritionData.Food("c"+System.currentTimeMillis(),n,
-                    brand.getText().toString().trim(),"\u6211\u7684\u98df\u54c1",parse(kcal),parse(protein),parse(fat),parse(carb),
+                    brand.getText().toString().trim(),"我的食品",parse(kcal),parse(protein),parse(fat),parse(carb),
                     parse(fiber),parse(sodium),code,NutritionData.Food.BASIS_SERVING.equals(code)?parse(serving):100d);
             customFoods.add(0,food); NutritionData.saveCustomFoods(this,customFoods);
             customFoods=NutritionData.loadCustomFoods(this);
             NutritionData.Food stored=customFoods.isEmpty()?food:customFoods.get(0);
-            Toast.makeText(this,"\u5df2\u4fdd\u5b58\uff1a"+one(stored.kcal)+" kcal"+stored.basisSuffix(),Toast.LENGTH_LONG).show();
+            Toast.makeText(this,"已保存："+one(stored.kcal)+" kcal"+stored.basisSuffix(),Toast.LENGTH_LONG).show();
             showScreen();
         });
-        form.addView(save); content.addView(form); content.addView(text("\u6211\u7684\u98df\u54c1",19,true));
-        if(customFoods.isEmpty()) content.addView(muted("\u8fd8\u6ca1\u6709\u81ea\u5b9a\u4e49\u98df\u54c1\u3002"));
-        for(NutritionData.Food f:new ArrayList<>(customFoods)) addFoodCard(f);
+        form.addView(save); content.addView(form);
+
+        content.addView(text("我的套餐",19,true));
+        boolean hasCombo=false;
+        for(NutritionData.Food f:new ArrayList<>(customFoods))if(f.isCombo()){addFoodCard(f);hasCombo=true;}
+        if(!hasCombo) content.addView(muted("还没有套餐。点击上方“创建餐食套餐”开始添加。"));
+
+        content.addView(text("我的包装食品",19,true));
+        boolean hasFood=false;
+        for(NutritionData.Food f:new ArrayList<>(customFoods))if(!f.isCombo()){addFoodCard(f);hasFood=true;}
+        if(!hasFood) content.addView(muted("还没有自定义包装食品。"));
     }
 
     private void addFoodCard(NutritionData.Food f){
         LinearLayout card=box(),row=new LinearLayout(this),detail=new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL); detail.setOrientation(LinearLayout.VERTICAL);
         detail.addView(text(f.name,15,true));
-        String meta=(f.brand.isEmpty()?"\u81ea\u5b9a\u4e49":f.brand)+" \u00b7 "+one(f.kcal)+" kcal"+f.basisSuffix();
-        if(f.isPerServing()&&f.servingSize>0) meta+=" \u00b7 1\u4efd\u7ea6"+one(f.servingSize)+"\u514b/\u6beb\u5347";
-        detail.addView(muted(meta));
-        Button add=button("\u8bb0\u5f55"); add.setOnClickListener(v->showAmountDialog(f,"\u52a0\u9910"));
-        Button del=button("\u5220\u9664"); del.setOnClickListener(v->{customFoods.remove(f);NutritionData.saveCustomFoods(this,customFoods);showScreen();});
-        row.addView(detail,new LinearLayout.LayoutParams(0,-2,1)); row.addView(add); row.addView(del); card.addView(row); content.addView(card);
+        String meta;
+        if(f.isCombo()){
+            meta="套餐 · "+one(f.kcal)+" kcal/份 · "+comboWeightSummary(f.components,1d);
+            detail.addView(muted(meta)); detail.addView(muted(componentSummary(f.components,1d)));
+        }else{
+            meta=(f.brand.isEmpty()?"自定义":f.brand)+" · "+one(f.kcal)+" kcal"+f.basisSuffix();
+            if(f.isPerServing()&&f.servingSize>0) meta+=" · 1份约"+one(f.servingSize)+"克/毫升";
+            detail.addView(muted(meta));
+        }
+        Button info=button("详情"); info.setOnClickListener(v->showFoodDetails(f));
+        Button add=button("记录"); add.setOnClickListener(v->showAmountDialog(f,"加餐"));
+        Button del=button("删除"); del.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("删除"+f.name)
+                .setMessage("只会删除保存的食品或套餐，不会删除已经记录到日期中的内容。")
+                .setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->{customFoods.remove(f);NutritionData.saveCustomFoods(this,customFoods);showScreen();}).show());
+        row.addView(detail,new LinearLayout.LayoutParams(0,-2,1)); row.addView(info); row.addView(add); row.addView(del); card.addView(row); content.addView(card);
     }
 
     @Override protected void showSettings(){
-        content.addView(text("\u6bcf\u65e5\u8425\u517b\u8ba1\u5212",21,true));
-        content.addView(muted("\u8bbe\u7f6e\u70ed\u91cf\u4e0a\u9650\u548c\u4e09\u5927\u8425\u517b\u7d20\u70ed\u91cf\u6bd4\u4f8b\uff0c\u76ee\u6807\u514b\u6570\u4f1a\u81ea\u52a8\u8ba1\u7b97\u3002"));
+        content.addView(text("每日营养计划",21,true));
+        content.addView(muted("设置热量上限和三大营养素热量比例，目标克数会自动计算。"));
         LinearLayout form=box();
-        form.addView(text("\u6bcf\u65e5\u70ed\u91cf\u4e0a\u9650",14,true));
-        EditText kcal=goalInput("\u70ed\u91cf kcal",goal.kcal); form.addView(kcal);
-        form.addView(text("\u4e09\u5927\u8425\u517b\u7d20\u70ed\u91cf\u6bd4\u4f8b",14,true));
-        EditText pp=goalInput("\u86cb\u767d\u8d28 %",goal.proteinPercent),fp=goalInput("\u8102\u80aa %",goal.fatPercent),cp=goalInput("\u78b3\u6c34 %",goal.carbPercent);
+        form.addView(text("每日热量上限",14,true));
+        EditText kcal=goalInput("热量 kcal",goal.kcal); form.addView(kcal);
+        form.addView(text("三大营养素热量比例",14,true));
+        EditText pp=goalInput("蛋白质 %",goal.proteinPercent),fp=goalInput("脂肪 %",goal.fatPercent),cp=goalInput("碳水 %",goal.carbPercent);
         form.addView(pp);form.addView(fp);form.addView(cp);
         TextView status=text("",14,true),calculated=muted(""); form.addView(status);form.addView(calculated);
-        form.addView(text("\u5176\u4ed6\u76ee\u6807",14,true));
-        EditText fiber=goalInput("\u81b3\u98df\u7ea4\u7ef4 g",goal.fiber),sodium=goalInput("\u94a0 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
+        form.addView(text("其他目标",14,true));
+        EditText fiber=goalInput("膳食纤维 g",goal.fiber),sodium=goalInput("钠 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
         Runnable preview=()->updatePlanPreview(kcal,pp,fp,cp,status,calculated);
         for(EditText e:new EditText[]{kcal,pp,fp,cp})e.addTextChangedListener(new SimpleWatcher(preview)); preview.run();
-        Button save=button("\u4fdd\u5b58\u8ba1\u5212"); save.setOnClickListener(v->{
+        Button save=button("保存计划"); save.setOnClickListener(v->{
             double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp);
-            if(energy<=0){Toast.makeText(this,"\u8bf7\u586b\u5199\u5927\u4e8e0\u7684\u70ed\u91cf\u4e0a\u9650",Toast.LENGTH_SHORT).show();return;}
-            if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"\u86cb\u767d\u8d28\u3001\u8102\u80aa\u3001\u78b3\u6c34\u6bd4\u4f8b\u5408\u8ba1\u5fc5\u987b\u4e3a100%",Toast.LENGTH_LONG).show();return;}
+            if(energy<=0){Toast.makeText(this,"请填写大于0的热量上限",Toast.LENGTH_SHORT).show();return;}
+            if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"蛋白质、脂肪、碳水比例合计必须为100%",Toast.LENGTH_LONG).show();return;}
             goal.kcal=energy;goal.proteinPercent=p;goal.fatPercent=f;goal.carbPercent=c;
             goal.fiber=valueOr(fiber,25);goal.sodium=valueOr(sodium,2000);goal.recalculateMacros();NutritionData.saveGoal(this,goal);
-            Toast.makeText(this,"\u5df2\u4fdd\u5b58\uff1a\u86cb\u767d"+one(goal.protein)+"g \u00b7 \u8102\u80aa"+one(goal.fat)+"g \u00b7 \u78b3\u6c34"+one(goal.carb)+"g",Toast.LENGTH_LONG).show();showScreen();
+            Toast.makeText(this,"已保存：蛋白"+one(goal.protein)+"g · 脂肪"+one(goal.fat)+"g · 碳水"+one(goal.carb)+"g",Toast.LENGTH_LONG).show();showScreen();
         });
         form.addView(save);content.addView(form);
-        LinearLayout note=box(); note.addView(text("\u8ba1\u7b97\u65b9\u5f0f",16,true));
-        note.addView(muted("\u86cb\u767d\u8d28\u548c\u78b3\u6c34\u63094 kcal/g\u8ba1\u7b97\uff0c\u8102\u80aa\u63099 kcal/g\u8ba1\u7b97\u3002\u6bd4\u4f8b\u6307\u5404\u8425\u517b\u7d20\u63d0\u4f9b\u7684\u70ed\u91cf\u5360\u6bcf\u65e5\u603b\u70ed\u91cf\u7684\u6bd4\u4f8b\u3002"));
-        Button clear=button("\u6e05\u7a7a\u5168\u90e8\u6570\u636e");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("\u6e05\u7a7a\u6570\u636e")
-                .setMessage("\u786e\u5b9a\u6e05\u7a7a\u5168\u90e8\u996e\u98df\u8bb0\u5f55\u3001\u81ea\u5b9a\u4e49\u98df\u54c1\u548c\u76ee\u6807\u8bbe\u7f6e\u5417\uff1f").setNegativeButton("\u53d6\u6d88",null)
-                .setPositiveButton("\u6e05\u7a7a",(d,w)->{NutritionData.clear(this);reload();screen="\u4eca\u65e5";showScreen();}).show());
+        LinearLayout note=box(); note.addView(text("计算方式",16,true));
+        note.addView(muted("蛋白质和碳水按4 kcal/g计算，脂肪按9 kcal/g计算。比例指各营养素提供的热量占每日总热量的比例。"));
+        Button clear=button("清空全部数据");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("清空数据")
+                .setMessage("确定清空全部饮食记录、自定义食品、套餐和目标设置吗？").setNegativeButton("取消",null)
+                .setPositiveButton("清空",(d,w)->{NutritionData.clear(this);reload();screen="今日";showScreen();}).show());
         note.addView(clear);content.addView(note);
     }
 
     private void updatePlanPreview(EditText kcal,EditText pp,EditText fp,EditText cp,TextView status,TextView out){
         double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp),total=p+f+c;
         boolean valid=energy>0&&Math.abs(total-100d)<0.05d;
-        status.setText("\u6bd4\u4f8b\u5408\u8ba1 "+one(total)+"%"+(valid?" \u2713":"\uff08\u9700\u8981\u4e3a100%\uff09"));
+        status.setText("比例合计 "+one(total)+"%"+(valid?" ✓":"（需要为100%）"));
         status.setTextColor(valid?GREEN:Color.rgb(190,65,55));
-        out.setText("\u81ea\u52a8\u8ba1\u7b97\u76ee\u6807\uff1a\n\u86cb\u767d\u8d28 "+one(energy*p/400d)+"g\uff08"+one(energy*p/100d)+" kcal\uff09\n\u8102\u80aa "+
-                one(energy*f/900d)+"g\uff08"+one(energy*f/100d)+" kcal\uff09\n\u78b3\u6c34 "+one(energy*c/400d)+"g\uff08"+one(energy*c/100d)+" kcal\uff09");
+        out.setText("自动计算目标：\n蛋白质 "+one(energy*p/400d)+"g（"+one(energy*p/100d)+" kcal）\n脂肪 "+
+                one(energy*f/900d)+"g（"+one(energy*f/100d)+" kcal）\n碳水 "+one(energy*c/400d)+"g（"+one(energy*c/100d)+" kcal）");
     }
 
     private EditText goalInput(String hint,double value){EditText e=input(hint,true);e.setText(one(value));return e;}
