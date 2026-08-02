@@ -70,7 +70,7 @@ public class ExpensePieView extends View {
         for(int i=0;i<slices.size();i++){
             Slice s=slices.get(i);if(s.value<=0)continue;
             paint.setColor(COLORS[i%COLORS.length]);canvas.drawRoundRect(new RectF(dp(18),y-dp(10),dp(30),y+dp(2)),dp(2),dp(2),paint);
-            textPaint.setTextAlign(Paint.Align.LEFT);textPaint.setTextSize(sp(13));textPaint.setTextColor(Color.rgb(45,52,61));
+            textPaint.setTextAlign(Paint.Align.LEFT);textPaint.setTextSize(sp(13));textPaint.setColor(Color.rgb(45,52,61));
             String label=ellipsize(s.label,18);canvas.drawText(label,dp(38),y,textPaint);
             String value=yen.format(s.value)+"  "+String.format(Locale.CHINA,"%.1f%%",100d*s.value/total);
             textPaint.setTextAlign(Paint.Align.RIGHT);textPaint.setTextSize(sp(12));textPaint.setColor(Color.rgb(85,92,101));
