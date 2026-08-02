@@ -20,7 +20,7 @@ jobs:
       - name: Apply v1.6.0 source patch
         run: |
           cat v1.6-patch.part00 v1.6-patch.part01 v1.6-patch.part02 v1.6-patch.part03 | base64 -d | gzip -d > /tmp/v1.6-complete.patch
-          git apply --exclude=README.md /tmp/v1.6-complete.patch
+          git apply --exclude=README.md --exclude=app/src/main/java/com/offline/ledger/ExpenseTrendView.java --exclude=app/src/main/java/com/offline/ledger/ExpensePieView.java /tmp/v1.6-complete.patch
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
