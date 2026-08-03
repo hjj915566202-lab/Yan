@@ -1,4 +1,4 @@
-name: Build Aligned Offline Ledger v1.7.0
+name: Export Android Build Tools 35
 
 on:
   pull_request:
@@ -7,38 +7,29 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
-  build-aligned:
+  export-tools:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: verify-v1.7.0
-      - name: Apply v1.6.0 source and v1.7.0 changes
-        run: |
-          cat v1.6-patch.part00 v1.6-patch.part01 v1.6-patch.part02 v1.6-patch.part03 | base64 -d | gzip -d > /tmp/v1.6-complete.patch
-          git apply --exclude=README.md --exclude=app/src/main/java/com/offline/ledger/ExpenseTrendView.java --exclude=app/src/main/java/com/offline/ledger/ExpensePieView.java /tmp/v1.6-complete.patch
-          base64 -d v1.7.patch.gz.b64 | gzip -d > /tmp/v1.7.patch
-          git apply /tmp/v1.7.patch
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-      - name: Build release APK
-        run: gradle --no-daemon :app:assembleRelease
-      - name: Align release APK
-        run: $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.7.0-aligned-unsigned.apk
+      - name: Install Android SDK Build Tools
+        run: sdkmanager "build-tools;35.0.0"
+      - name: Collect signing tools
+        run: |
+          mkdir -p android-build-tools-35/lib android-build-tools-35/lib64
+          cp "$ANDROID_HOME/build-tools/35.0.0/apksigner" android-build-tools-35/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" android-build-tools-35/lib/
+          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" android-build-tools-35/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib64/libc++.so" android-build-tools-35/lib64/
+          chmod +x android-build-tools-35/apksigner android-build-tools-35/zipalign
       - uses: actions/upload-artifact@v4
         with:
-          name: offline-savings-ledger-v1.7.0-aligned-unsigned
-          path: offline-savings-ledger-v1.7.0-aligned-unsigned.apk
-          retention-days: 7
+          name: android-build-tools-35-signing
+          path: android-build-tools-35
+          retention-days: 1
