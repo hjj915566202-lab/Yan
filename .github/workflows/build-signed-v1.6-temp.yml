@@ -16,14 +16,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: verify-v1.8.0
-      - name: Apply v1.6.0, v1.7.0 and v1.8.0 source patches
+      - name: Apply v1.6.0 and v1.7.0 source patches
         run: |
           cat v1.6-patch.part00 v1.6-patch.part01 v1.6-patch.part02 v1.6-patch.part03 | base64 -d | gzip -d > /tmp/v1.6-complete.patch
           git apply --exclude=README.md --exclude=app/src/main/java/com/offline/ledger/ExpenseTrendView.java --exclude=app/src/main/java/com/offline/ledger/ExpensePieView.java /tmp/v1.6-complete.patch
           base64 -d v1.7.patch.gz.b64 | gzip -d > /tmp/v1.7.patch
           git apply /tmp/v1.7.patch
-          gzip -dc v1.8-relative.patch.gz > /tmp/v1.8.patch
-          git apply /tmp/v1.8.patch
+      - name: Apply v1.8.0 source changes
+        run: python3 apply-v1.8.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
