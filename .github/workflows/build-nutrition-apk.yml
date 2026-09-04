@@ -83,6 +83,11 @@ jobs:
           print('validated food count:', data['count'], 'non-finite values: 0')
           PY
 
+      - name: Set v2.5.1 build version
+        run: |
+          sed -i "s/versionCode 12/versionCode 13/" app/build.gradle
+          sed -i "s/versionName '2.5.0'/versionName '2.5.1'/" app/build.gradle
+
       - name: Restore stable signing key
         run: base64 --decode nutrition-ledger.jks.b64 > nutrition-ledger.jks
 
@@ -97,7 +102,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: NutritionLedger-v2.5.0
+          name: NutritionLedger-v2.5.1
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
