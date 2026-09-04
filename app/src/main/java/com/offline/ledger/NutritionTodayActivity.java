@@ -5,12 +5,14 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class NutritionTodayActivity extends NutritionBaseActivity {
+    private static final int OVER_YELLOW = Color.rgb(236, 180, 45);
+    private static final int OVER_RED = Color.rgb(205, 67, 67);
+
     private static void addSafe(double[] totals, int index, double value) {
         totals[index] = NutritionData.safeNumber(totals[index] + NutritionData.safeNumber(value));
     }
@@ -44,22 +46,31 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
         content.addView(copy);
 
         double[] t = totalsForDate();
-        LinearLayout summary = box(); summary.setBackgroundColor(GREEN);
-        TextView a=text("今日摄入",14,false),b=text(one(t[0])+" kcal",31,true),
-                c=text("目标 "+one(goal.kcal)+" kcal · 剩余 "+one(Math.max(0,goal.kcal-t[0]))+" kcal",13,false);
-        a.setTextColor(Color.WHITE);b.setTextColor(Color.WHITE);c.setTextColor(Color.WHITE);
-        summary.addView(a);summary.addView(b);summary.addView(c);
-        LinearLayout macros=new LinearLayout(this);macros.setOrientation(LinearLayout.HORIZONTAL);
-        String[]vs={"蛋白\n"+one(t[1])+"g","脂肪\n"+one(t[2])+"g","碳水\n"+one(t[3])+"g","纤维\n"+one(t[4])+"g"};
-        for(String s:vs){TextView v=text(s,13,true);v.setTextColor(Color.WHITE);v.setGravity(Gravity.CENTER);macros.addView(v,new LinearLayout.LayoutParams(0,-2,1));}
-        summary.addView(macros);content.addView(summary);
+        double over = Math.max(0d, NutritionData.safeNumber(t[0] - goal.kcal));
+        int summaryColor = over > 200d ? OVER_RED : (over > 100d ? OVER_YELLOW : GREEN);
+        int summaryTextColor = (over > 100d && over <= 200d) ? TEXT : Color.WHITE;
 
-        content.addView(progressCard("热量",t[0],goal.kcal,"kcal"));
-        content.addView(progressCard("蛋白质",t[1],goal.protein,"g"));
-        content.addView(progressCard("脂肪",t[2],goal.fat,"g"));
-        content.addView(progressCard("碳水",t[3],goal.carb,"g"));
-        content.addView(progressCard("膳食纤维",t[4],goal.fiber,"g"));
-        content.addView(progressCard("钠",t[5],goal.sodium,"mg"));
+        LinearLayout summary = box();
+        summary.setBackgroundColor(summaryColor);
+        TextView a = text("今日摄入 / 每日目标",14,false);
+        TextView b = text(one(t[0]) + " / " + one(goal.kcal) + " kcal",30,true);
+        TextView c = text(over > 0d ? "已超出 " + one(over) + " kcal" : "剩余 " + one(Math.max(0d, goal.kcal - t[0])) + " kcal",13,false);
+        setSummaryTextColor(a, summaryTextColor); setSummaryTextColor(b, summaryTextColor); setSummaryTextColor(c, summaryTextColor);
+        summary.addView(a); summary.addView(b); summary.addView(c);
+
+        LinearLayout macroRow = new LinearLayout(this);
+        macroRow.setOrientation(LinearLayout.HORIZONTAL);
+        addSummaryMetric(macroRow, "蛋白质", t[1], goal.protein, "g", summaryTextColor, 1f);
+        addSummaryMetric(macroRow, "脂肪", t[2], goal.fat, "g", summaryTextColor, 1f);
+        addSummaryMetric(macroRow, "碳水", t[3], goal.carb, "g", summaryTextColor, 1f);
+        summary.addView(macroRow);
+
+        LinearLayout otherRow = new LinearLayout(this);
+        otherRow.setOrientation(LinearLayout.HORIZONTAL);
+        addSummaryMetric(otherRow, "膳食纤维", t[4], goal.fiber, "g", summaryTextColor, 1f);
+        addSummaryMetric(otherRow, "钠", t[5], goal.sodium, "mg", summaryTextColor, 1f);
+        summary.addView(otherRow);
+        content.addView(summary);
 
         LinearLayout micro = box();
         LinearLayout microHead = new LinearLayout(this); microHead.setGravity(Gravity.CENTER_VERTICAL);
@@ -84,15 +95,25 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
         for(String meal:MEALS)content.addView(mealCard(meal));
     }
 
-    protected void refreshToday(){content.removeAllViews();showToday();}
-
-    private LinearLayout progressCard(String name,double used,double target,String unit){
-        used=NutritionData.safeNumber(used); target=NutritionData.safeNumber(target);
-        LinearLayout card=box(),top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text(name,14,true),new LinearLayout.LayoutParams(0,-2,1));top.addView(muted(one(used)+" / "+one(target)+" "+unit));card.addView(top);
-        ProgressBar p=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);p.setMax(1000);p.setProgress(target<=0?0:(int)Math.min(1000,used/target*1000));
-        card.addView(p,new LinearLayout.LayoutParams(-1,dp(8)));return card;
+    private void setSummaryTextColor(TextView view, int color) {
+        view.setTextColor(color);
     }
+
+    private void addSummaryMetric(LinearLayout row, String name, double used, double target,
+                                  String unit, int color, float weight) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setGravity(Gravity.CENTER);
+        cell.setPadding(dp(4), dp(5), dp(4), dp(5));
+        TextView label = text(name, 12, false);
+        TextView value = text(one(used) + " / " + one(target) + " " + unit, 13, true);
+        label.setGravity(Gravity.CENTER); value.setGravity(Gravity.CENTER);
+        label.setTextColor(color); value.setTextColor(color);
+        cell.addView(label); cell.addView(value);
+        row.addView(cell, new LinearLayout.LayoutParams(0, -2, weight));
+    }
+
+    protected void refreshToday(){content.removeAllViews();showToday();}
 
     private LinearLayout mealCard(String meal){
         LinearLayout card=box(),head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);double kcal=0;
