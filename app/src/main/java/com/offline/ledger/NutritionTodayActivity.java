@@ -116,15 +116,47 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
     protected void refreshToday(){content.removeAllViews();showToday();}
 
     private LinearLayout mealCard(String meal){
-        LinearLayout card=box(),head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);double kcal=0;
-        for(NutritionData.Entry e:entries)if(selectedDate.toString().equals(e.date)&&meal.equals(e.meal))kcal+=NutritionData.safeNumber(e.kcal);
-        LinearLayout title=new LinearLayout(this);title.setOrientation(LinearLayout.VERTICAL);title.addView(text(meal,17,true));title.addView(muted(one(kcal)+" kcal"));
-        Button add=button("＋ 添加");add.setOnClickListener(v->showFoodPicker(meal));head.addView(title,new LinearLayout.LayoutParams(0,-2,1));head.addView(add);card.addView(head);
-        boolean found=false;
-        for(NutritionData.Entry e:new ArrayList<>(entries)){
-            if(!selectedDate.toString().equals(e.date)||!meal.equals(e.meal))continue;found=true;
-            LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(7),0,dp(7));
-            LinearLayout detail=new LinearLayout(this);detail.setOrientation(LinearLayout.VERTICAL);detail.addView(text(e.name,14,true));
+        LinearLayout card = box();
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        double kcal = 0d;
+        int itemCount = 0;
+        for (NutritionData.Entry e : entries) {
+            if (selectedDate.toString().equals(e.date) && meal.equals(e.meal)) {
+                kcal += NutritionData.safeNumber(e.kcal);
+                itemCount++;
+            }
+        }
+
+        LinearLayout title = new LinearLayout(this);
+        title.setOrientation(LinearLayout.VERTICAL);
+        title.addView(text(meal,17,true));
+        title.addView(muted(one(kcal) + " kcal · " + itemCount + "项"));
+
+        final int count = itemCount;
+        Button toggle = button(count > 0 ? "展开 ▾" : "无记录");
+        toggle.setEnabled(count > 0);
+        Button add = button("＋ 添加");
+        add.setOnClickListener(v -> showFoodPicker(meal));
+
+        head.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        head.addView(toggle);
+        head.addView(add);
+        card.addView(head);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(View.GONE);
+
+        for (NutritionData.Entry e : new ArrayList<>(entries)) {
+            if(!selectedDate.toString().equals(e.date) || !meal.equals(e.meal)) continue;
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0,dp(7),0,dp(7));
+            LinearLayout detail = new LinearLayout(this);
+            detail.setOrientation(LinearLayout.VERTICAL);
+            detail.addView(text(e.name,14,true));
             if(e.isCombo()){
                 detail.addView(muted(one(e.amount)+"份 · "+comboWeightSummary(e.components,1d)));
                 detail.addView(muted(componentSummary(e.components,1d)));
@@ -132,10 +164,27 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
                 detail.addView(muted(one(e.amount)+e.amountUnit));
             }
             detail.addView(muted("蛋白"+one(e.protein)+"g · 脂肪"+one(e.fat)+"g · 碳水"+one(e.carb)+"g"));
-            TextView k=text(one(e.kcal)+" kcal",13,true);Button del=button("×");
-            del.setOnClickListener(v->{List<NutritionData.Entry>keep=new ArrayList<>();for(NutritionData.Entry x:entries)if(!x.id.equals(e.id))keep.add(x);entries=keep;NutritionData.saveEntries(this,entries);refreshToday();});
-            row.addView(detail,new LinearLayout.LayoutParams(0,-2,1));row.addView(k);row.addView(del,new LinearLayout.LayoutParams(dp(56),-2));card.addView(row);
+            TextView k = text(one(e.kcal)+" kcal",13,true);
+            Button del = button("×");
+            del.setOnClickListener(v -> {
+                List<NutritionData.Entry> keep = new ArrayList<>();
+                for(NutritionData.Entry x:entries) if(!x.id.equals(e.id)) keep.add(x);
+                entries = keep;
+                NutritionData.saveEntries(this,entries);
+                refreshToday();
+            });
+            row.addView(detail,new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(k);
+            row.addView(del,new LinearLayout.LayoutParams(dp(56),-2));
+            details.addView(row);
         }
-        if(!found)card.addView(muted("尚未记录"));return card;
+
+        card.addView(details);
+        toggle.setOnClickListener(v -> {
+            boolean expand = details.getVisibility() != View.VISIBLE;
+            details.setVisibility(expand ? View.VISIBLE : View.GONE);
+            toggle.setText(expand ? "收起 ▴" : "展开 ▾");
+        });
+        return card;
     }
 }
