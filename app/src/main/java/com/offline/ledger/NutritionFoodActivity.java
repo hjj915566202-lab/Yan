@@ -12,6 +12,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +61,7 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
         wrap.setPadding(dp(20), dp(8), dp(20), 0);
+        wrap.addView(muted("可连续添加多个食物；全部添加完成后再点“关闭”返回主界面。"));
         EditText search = input("搜索食物名称、编码或子类", false);
         Spinner category = spinner(categories(), "全部");
         TextView count = muted("");
@@ -76,7 +78,11 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
         };
         search.addTextChangedListener(new SimpleWatcher(render));
         category.setOnItemSelectedListener(new SimpleItemSelected(render));
-        dialog.setOnShowListener(x -> render.run()); dialog.show();
+        dialog.setOnShowListener(x -> render.run());
+        dialog.setOnDismissListener(x -> {
+            if ("今日".equals(screen)) refreshToday();
+        });
+        dialog.show();
     }
 
     private void renderFoodRows(LinearLayout list, List<NutritionData.Food> foods, String meal, AlertDialog parent) {
@@ -89,7 +95,7 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
             detail.addView(muted(foodMeta(f)));
             if(f.isCombo())detail.addView(muted(componentSummary(f.components,1d)));
             Button info = button("详情"); info.setOnClickListener(v -> showFoodDetails(f));
-            Button add = button("＋"); add.setOnClickListener(v -> { parent.dismiss(); showAmountDialog(f, meal); });
+            Button add = button("＋"); add.setOnClickListener(v -> showAmountDialog(f, meal));
             row.addView(detail, new LinearLayout.LayoutParams(0, -2, 1)); row.addView(info); row.addView(add); list.addView(row);
         }
         if (foods.isEmpty()) list.addView(muted("没有找到食物。可在“自定义”中自行添加。"));
@@ -125,7 +131,7 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
                     e.meal = String.valueOf(mealSpinner.getSelectedItem()); e.name = food.name;
                     e.amount = a; e.amountUnit = food.amountUnit(); e.applyFood(food, r);
                     entries.add(e); NutritionData.saveEntries(this, entries);
-                    screen = "今日"; showScreen();
+                    Toast.makeText(this, "已添加到" + e.meal + "：" + food.name, Toast.LENGTH_SHORT).show();
                 }).show();
     }
 
