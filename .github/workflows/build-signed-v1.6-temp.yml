@@ -1,4 +1,4 @@
-name: Build Aligned Offline Ledger v1.8.0
+name: Build Aligned Offline Ledger v1.9.0
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: verify-v1.8.0
+          ref: verify-v1.9.0-ui
       - name: Apply v1.6.0 and v1.7.0 source patches
         run: |
           cat v1.6-patch.part00 v1.6-patch.part01 v1.6-patch.part02 v1.6-patch.part03 | base64 -d | gzip -d > /tmp/v1.6-complete.patch
@@ -24,6 +24,10 @@ jobs:
           git apply /tmp/v1.7.patch
       - name: Apply v1.8.0 source changes
         run: python3 apply-v1.8.py
+      - name: Apply v1.9.0 UI redesign
+        run: |
+          cat v1.9-ui.part00 v1.9-ui.part01 v1.9-ui.part02 v1.9-ui.part03 v1.9-ui.part04 | base64 -d | gzip -d > /tmp/v1.9-ui.patch
+          git apply /tmp/v1.9-ui.patch
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,9 +41,9 @@ jobs:
       - name: Build release APK
         run: gradle --no-daemon :app:assembleRelease
       - name: Align release APK
-        run: $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.8.0-aligned-unsigned.apk
+        run: $ANDROID_HOME/build-tools/35.0.0/zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk offline-savings-ledger-v1.9.0-aligned-unsigned.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: offline-savings-ledger-v1.8.0-aligned-unsigned
-          path: offline-savings-ledger-v1.8.0-aligned-unsigned.apk
+          name: offline-savings-ledger-v1.9.0-aligned-unsigned
+          path: offline-savings-ledger-v1.9.0-aligned-unsigned.apk
           retention-days: 7
