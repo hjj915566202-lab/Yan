@@ -15,16 +15,26 @@ import java.util.ArrayList;
 
 public class MainActivity extends NutritionTrendActivity {
     @Override protected void showCustomFoodScreen() {
-        content.addView(text("自定义食品与套餐", 21, true));
+        content.addView(text("自定义", 21, true));
+        content.addView(muted("把经常吃的组合和包装食品保存下来，之后可以直接按份记录。"));
 
-        LinearLayout comboBox = box();
-        comboBox.addView(text("餐食套餐",17,true));
-        comboBox.addView(muted("把多种食材和各自用量合并成1份。记录套餐时会保留食材明细和合计重量。"));
-        Button createCombo = button("＋ 创建餐食套餐"); createCombo.setOnClickListener(v -> showComboBuilder());
-        comboBox.addView(createCombo); content.addView(comboBox);
+        LinearLayout actions = box();
+        actions.addView(text("快速创建",15,true));
+        LinearLayout actionRow=new LinearLayout(this);
+        actionRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button createCombo = primaryButton("＋ 餐食套餐");
+        Button addPackage = button("＋ 包装食品");
+        actionRow.addView(createCombo,new LinearLayout.LayoutParams(0,dp(44),1));
+        LinearLayout.LayoutParams packageParams=new LinearLayout.LayoutParams(0,dp(44),1);
+        packageParams.setMargins(dp(7),0,0,0);
+        actionRow.addView(addPackage,packageParams);
+        actions.addView(actionRow);
+        content.addView(actions);
 
-        content.addView(text("添加包装食品", 19, true));
         LinearLayout form = box();
+        form.setVisibility(View.GONE);
+        form.addView(text("添加包装食品",17,true));
+        form.addView(muted("按包装上的营养标签填写；计量基准会原样保存。"));
         EditText name = input("食品名称", false);
         EditText brand = input("品牌（可选）", false);
         Spinner basis = spinner(new String[]{"每100克", "每100毫升", "每1份（1袋/1盒/1个）"}, "每100克");
@@ -49,7 +59,7 @@ public class MainActivity extends NutritionTrendActivity {
             }
             public void onNothingSelected(AdapterView<?> p) {}
         });
-        Button save=button("保存到食物库");
+        Button save=primaryButton("保存到食物库");
         save.setOnClickListener(v->{
             String n=name.getText().toString().trim();
             if(n.isEmpty()||parse(kcal)<=0){Toast.makeText(this,"请填写食品名称和热量",Toast.LENGTH_SHORT).show();return;}
@@ -65,14 +75,22 @@ public class MainActivity extends NutritionTrendActivity {
             Toast.makeText(this,"已保存："+one(stored.kcal)+" kcal"+stored.basisSuffix(),Toast.LENGTH_LONG).show();
             showScreen();
         });
-        form.addView(save); content.addView(form);
+        form.addView(save);
+        content.addView(form);
 
-        content.addView(text("我的套餐",19,true));
+        createCombo.setOnClickListener(v -> showComboBuilder());
+        addPackage.setOnClickListener(v -> {
+            boolean show=form.getVisibility()!=View.VISIBLE;
+            form.setVisibility(show?View.VISIBLE:View.GONE);
+            addPackage.setText(show?"收起包装食品":"＋ 包装食品");
+        });
+
+        content.addView(text("我的套餐",17,true));
         boolean hasCombo=false;
         for(NutritionData.Food f:new ArrayList<>(customFoods))if(f.isCombo()){addFoodCard(f);hasCombo=true;}
-        if(!hasCombo) content.addView(muted("还没有套餐。点击上方“创建餐食套餐”开始添加。"));
+        if(!hasCombo) content.addView(muted("还没有套餐。上方点“餐食套餐”即可创建。"));
 
-        content.addView(text("我的包装食品",19,true));
+        content.addView(text("我的包装食品",17,true));
         boolean hasFood=false;
         for(NutritionData.Food f:new ArrayList<>(customFoods))if(!f.isCombo()){addFoodCard(f);hasFood=true;}
         if(!hasFood) content.addView(muted("还没有自定义包装食品。"));
@@ -101,7 +119,7 @@ public class MainActivity extends NutritionTrendActivity {
 
     @Override protected void showSettings(){
         content.addView(text("每日营养计划",21,true));
-        content.addView(muted("设置热量上限和三大营养素热量比例，目标克数会自动计算。"));
+        content.addView(muted("只调整热量上限和三大营养素比例，目标克数会自动计算。"));
         LinearLayout form=box();
         form.addView(text("每日热量上限",14,true));
         EditText kcal=goalInput("热量 kcal",goal.kcal); form.addView(kcal);
@@ -113,7 +131,7 @@ public class MainActivity extends NutritionTrendActivity {
         EditText fiber=goalInput("膳食纤维 g",goal.fiber),sodium=goalInput("钠 mg",goal.sodium);form.addView(fiber);form.addView(sodium);
         Runnable preview=()->updatePlanPreview(kcal,pp,fp,cp,status,calculated);
         for(EditText e:new EditText[]{kcal,pp,fp,cp})e.addTextChangedListener(new SimpleWatcher(preview)); preview.run();
-        Button save=button("保存计划"); save.setOnClickListener(v->{
+        Button save=primaryButton("保存计划"); save.setOnClickListener(v->{
             double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp);
             if(energy<=0){Toast.makeText(this,"请填写大于0的热量上限",Toast.LENGTH_SHORT).show();return;}
             if(Math.abs(p+f+c-100d)>=0.05d){Toast.makeText(this,"蛋白质、脂肪、碳水比例合计必须为100%",Toast.LENGTH_LONG).show();return;}
@@ -134,7 +152,7 @@ public class MainActivity extends NutritionTrendActivity {
         double energy=parse(kcal),p=parse(pp),f=parse(fp),c=parse(cp),total=p+f+c;
         boolean valid=energy>0&&Math.abs(total-100d)<0.05d;
         status.setText("比例合计 "+one(total)+"%"+(valid?" ✓":"（需要为100%）"));
-        status.setTextColor(valid?GREEN:Color.rgb(190,65,55));
+        status.setTextColor(valid?GREEN:DANGER);
         out.setText("自动计算目标：\n蛋白质 "+one(energy*p/400d)+"g（"+one(energy*p/100d)+" kcal）\n脂肪 "+
                 one(energy*f/900d)+"g（"+one(energy*f/100d)+" kcal）\n碳水 "+one(energy*c/400d)+"g（"+one(energy*c/100d)+" kcal）");
     }
