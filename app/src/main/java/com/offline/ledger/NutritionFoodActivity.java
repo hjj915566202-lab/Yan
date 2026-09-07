@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -57,23 +58,74 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
                 + " · 蛋白" + one(f.protein) + "g · 脂肪" + one(f.fat) + "g · 碳水" + one(f.carb) + "g";
     }
 
+    private List<NutritionData.Food> recentFoods() {
+        List<NutritionData.Food> all = allFoods();
+        List<NutritionData.Food> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = entries.size() - 1; i >= 0 && out.size() < 8; i--) {
+            NutritionData.Entry entry = entries.get(i);
+            if (entry == null || entry.name == null || entry.name.isEmpty() || !seen.add(entry.name)) continue;
+            for (NutritionData.Food food : all) {
+                if (entry.name.equals(food.name)) {
+                    out.add(food);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
     @Override protected void showFoodPicker(String meal) {
         LinearLayout wrap = new LinearLayout(this);
         wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setPadding(dp(20), dp(8), dp(20), 0);
-        wrap.addView(muted("可连续添加多个食物；全部添加完成后再点“关闭”返回主界面。"));
-        EditText search = input("搜索食物名称、编码或子类", false);
+        wrap.setPadding(dp(18), dp(7), dp(18), 0);
+        wrap.addView(muted("连续添加模式 · 添加完成后点“关闭”返回"));
+
+        List<NutritionData.Food> recent = recentFoods();
+        if (!recent.isEmpty()) {
+            wrap.addView(text("最近使用",13,true));
+            HorizontalScrollView recentScroll = new HorizontalScrollView(this);
+            recentScroll.setHorizontalScrollBarEnabled(false);
+            LinearLayout recentRow = new LinearLayout(this);
+            recentRow.setOrientation(LinearLayout.HORIZONTAL);
+            for (NutritionData.Food food : recent) {
+                Button chip = button(food.name);
+                chip.setSingleLine(true);
+                chip.setOnClickListener(v -> showAmountDialog(food, meal));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2,dp(40));
+                cp.setMargins(0,0,dp(6),0);
+                recentRow.addView(chip,cp);
+            }
+            recentScroll.addView(recentRow);
+            wrap.addView(recentScroll,new LinearLayout.LayoutParams(-1,dp(46)));
+        }
+
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+        EditText search = input("搜索食物、编码或子类", false);
+        Button clear = button("清空");
+        clear.setOnClickListener(v -> search.setText(""));
+        searchRow.addView(search,new LinearLayout.LayoutParams(0,dp(48),1));
+        LinearLayout.LayoutParams clearParams=new LinearLayout.LayoutParams(-2,dp(40));
+        clearParams.setMargins(dp(6),0,0,0);
+        searchRow.addView(clear,clearParams);
+        wrap.addView(searchRow);
+
         Spinner category = spinner(categories(), "全部");
         TextView count = muted("");
-        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
-        ScrollView scroll = new ScrollView(this); scroll.addView(list);
-        wrap.addView(search); wrap.addView(category); wrap.addView(count);
-        wrap.addView(scroll, new LinearLayout.LayoutParams(-1, dp(450)));
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        wrap.addView(category);
+        wrap.addView(count);
+        wrap.addView(scroll, new LinearLayout.LayoutParams(-1, dp(410)));
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("添加到" + meal).setView(wrap).setNegativeButton("关闭", null).create();
         Runnable render = () -> {
             List<NutritionData.Food> foods = filterFoods(search.getText().toString(), String.valueOf(category.getSelectedItem()));
-            count.setText("找到 " + foods.size() + " 条" + (foods.size() > PICKER_LIMIT ? "，显示前 " + PICKER_LIMIT + " 条" : ""));
+            count.setText("找到 " + foods.size() + " 条" + (foods.size() > PICKER_LIMIT ? " · 显示前 " + PICKER_LIMIT + " 条" : ""));
             renderFoodRows(list, foods, meal, dialog);
         };
         search.addTextChangedListener(new SimpleWatcher(render));
@@ -86,29 +138,45 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
     }
 
     private void renderFoodRows(LinearLayout list, List<NutritionData.Food> foods, String meal, AlertDialog parent) {
-        list.removeAllViews(); int shown = Math.min(PICKER_LIMIT, foods.size());
+        list.removeAllViews();
+        int shown = Math.min(PICKER_LIMIT, foods.size());
         for (int i = 0; i < shown; i++) {
             NutritionData.Food f = foods.get(i);
-            LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
-            LinearLayout detail = new LinearLayout(this); detail.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(4),dp(5),0,dp(5));
+            LinearLayout detail = new LinearLayout(this);
+            detail.setOrientation(LinearLayout.VERTICAL);
             detail.addView(text(f.name + (f.brand.isEmpty() ? "" : " · " + f.brand), 14, true));
             detail.addView(muted(foodMeta(f)));
             if(f.isCombo())detail.addView(muted(componentSummary(f.components,1d)));
-            Button info = button("详情"); info.setOnClickListener(v -> showFoodDetails(f));
-            Button add = button("＋"); add.setOnClickListener(v -> showAmountDialog(f, meal));
-            row.addView(detail, new LinearLayout.LayoutParams(0, -2, 1)); row.addView(info); row.addView(add); list.addView(row);
+            Button info = button("详情");
+            info.setOnClickListener(v -> showFoodDetails(f,meal));
+            Button add = button("＋");
+            add.setOnClickListener(v -> showAmountDialog(f, meal));
+            row.addView(detail, new LinearLayout.LayoutParams(0, -2, 1));
+            row.addView(info,new LinearLayout.LayoutParams(-2,dp(38)));
+            row.addView(add,new LinearLayout.LayoutParams(dp(44),dp(38)));
+            list.addView(row);
         }
         if (foods.isEmpty()) list.addView(muted("没有找到食物。可在“自定义”中自行添加。"));
         else if (foods.size() > shown) list.addView(muted("结果较多，请继续输入名称、编码或选择分类缩小范围。"));
     }
 
     @Override protected void showAmountDialog(NutritionData.Food food, String meal) {
-        LinearLayout wrap = new LinearLayout(this); wrap.setOrientation(LinearLayout.VERTICAL); wrap.setPadding(dp(24), dp(8), dp(24), 0);
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(22), dp(8), dp(22), 0);
         Spinner mealSpinner = spinner(MEALS, meal);
-        EditText amount = input(amountLabel(food), true); amount.setText(one(food.defaultAmount()));
+        EditText amount = input(amountLabel(food), true);
+        amount.setText(one(food.defaultAmount()));
+        amount.setSelectAllOnFocus(true);
         TextView preview = muted("");
-        wrap.addView(text("餐次", 13, true)); wrap.addView(mealSpinner);
-        wrap.addView(text(amountLabel(food), 13, true)); wrap.addView(amount); wrap.addView(preview);
+        wrap.addView(text("记录到", 13, true));
+        wrap.addView(mealSpinner);
+        wrap.addView(text(amountLabel(food), 13, true));
+        wrap.addView(amount);
+        wrap.addView(preview);
         Runnable update = () -> {
             double a = parse(amount), r = food.ratio(a);
             String value = one(food.kcal * r) + " kcal · 蛋白" + one(food.protein * r)
@@ -121,7 +189,7 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
         };
         amount.addTextChangedListener(new SimpleWatcher(update)); update.run();
         new AlertDialog.Builder(this).setTitle(food.name).setView(wrap)
-                .setNeutralButton("营养详情", (d, w) -> showFoodDetails(food))
+                .setNeutralButton("营养详情", (d, w) -> showFoodDetails(food,String.valueOf(mealSpinner.getSelectedItem())))
                 .setNegativeButton("取消", null)
                 .setPositiveButton("加入记录", (d, w) -> {
                     double a = parse(amount); if (a <= 0) return;
@@ -172,6 +240,10 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
     }
 
     protected void showFoodDetails(NutritionData.Food f) {
+        showFoodDetails(f,"加餐");
+    }
+
+    protected void showFoodDetails(NutritionData.Food f,String meal) {
         LinearLayout body = new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(dp(20), dp(8), dp(20), dp(16));
         if(f.isCombo()){
             body.addView(text("套餐配方（每1份）",16,true));
@@ -199,7 +271,7 @@ public abstract class NutritionFoodActivity extends NutritionTodayActivity {
         if (!f.source.isEmpty()&&!f.isCombo()) body.addView(muted("数据源：" + f.source + "\n注：原始Tr、空值或无法解析值按0显示；请优先以商品标签或官方资料为准。"));
         ScrollView scroll = new ScrollView(this); scroll.addView(body);
         new AlertDialog.Builder(this).setTitle(f.name).setView(scroll).setNegativeButton("关闭", null)
-                .setPositiveButton("记录", (d, w) -> showAmountDialog(f, "加餐")).show();
+                .setPositiveButton("记录", (d, w) -> showAmountDialog(f, meal)).show();
     }
 
     private void addDetail(LinearLayout body, String label, double value, String unit) {
