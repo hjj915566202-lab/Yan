@@ -6,12 +6,16 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public abstract class NutritionTodayActivity extends NutritionBaseActivity {
     private static final int OVER_YELLOW = Color.rgb(236, 180, 45);
     private static final int OVER_RED = Color.rgb(205, 67, 67);
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("M月d日 E", Locale.SIMPLIFIED_CHINESE);
 
     private static void addSafe(double[] totals, int index, double value) {
         totals[index] = NutritionData.safeNumber(totals[index] + NutritionData.safeNumber(value));
@@ -32,18 +36,7 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
 
     @Override protected void showToday() {
         screen = "今日";
-        LinearLayout bar = new LinearLayout(this); bar.setGravity(Gravity.CENTER_VERTICAL);
-        Button prev = button("‹"), next = button("›");
-        TextView date = text(selectedDate.toString(), 17, true); date.setGravity(Gravity.CENTER);
-        prev.setOnClickListener(v -> { selectedDate = selectedDate.minusDays(1); refreshToday(); });
-        next.setOnClickListener(v -> { selectedDate = selectedDate.plusDays(1); refreshToday(); });
-        bar.addView(prev,new LinearLayout.LayoutParams(dp(60),-2));
-        bar.addView(date,new LinearLayout.LayoutParams(0,-2,1));
-        bar.addView(next,new LinearLayout.LayoutParams(dp(60),-2)); content.addView(bar);
-
-        Button copy = button("从其他日期复制记录");
-        copy.setOnClickListener(v -> showCopyRecordsDialog());
-        content.addView(copy);
+        content.addView(dateControl());
 
         double[] t = totalsForDate();
         double over = Math.max(0d, NutritionData.safeNumber(t[0] - goal.kcal));
@@ -51,10 +44,11 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
         int summaryTextColor = (over > 100d && over <= 200d) ? TEXT : Color.WHITE;
 
         LinearLayout summary = box();
-        summary.setBackgroundColor(summaryColor);
-        TextView a = text("今日摄入 / 每日目标",14,false);
-        TextView b = text(one(t[0]) + " / " + one(goal.kcal) + " kcal",30,true);
-        TextView c = text(over > 0d ? "已超出 " + one(over) + " kcal" : "剩余 " + one(Math.max(0d, goal.kcal - t[0])) + " kcal",13,false);
+        setCardBackground(summary,summaryColor);
+        summary.setPadding(dp(16),dp(15),dp(16),dp(14));
+        TextView a = text("热量摄入",13,true);
+        TextView b = text(one(t[0]) + " / " + one(goal.kcal) + " kcal",29,true);
+        TextView c = text(over > 0d ? "已超出 " + one(over) + " kcal" : "还可摄入 " + one(Math.max(0d, goal.kcal - t[0])) + " kcal",13,false);
         setSummaryTextColor(a, summaryTextColor); setSummaryTextColor(b, summaryTextColor); setSummaryTextColor(c, summaryTextColor);
         summary.addView(a); summary.addView(b); summary.addView(c);
 
@@ -72,27 +66,78 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
         summary.addView(otherRow);
         content.addView(summary);
 
-        LinearLayout micro = box();
-        LinearLayout microHead = new LinearLayout(this); microHead.setGravity(Gravity.CENTER_VERTICAL);
-        TextView microTitle = text("当日微量营养素",16,true);
-        Button toggle = button("展开 ▾");
-        microHead.addView(microTitle,new LinearLayout.LayoutParams(0,-2,1)); microHead.addView(toggle);
-        micro.addView(microHead);
-        LinearLayout microDetails = new LinearLayout(this); microDetails.setOrientation(LinearLayout.VERTICAL);
-        microDetails.setVisibility(View.GONE);
-        microDetails.addView(muted("来自已记录食物的合计；旧版记录不含的字段按0计算。"));
-        microDetails.addView(text("钙 " + one(t[6]) + "mg  ·  铁 " + one(t[7]) + "mg  ·  钾 " + one(t[8]) + "mg",14,false));
-        microDetails.addView(text("镁 " + one(t[9]) + "mg  ·  锌 " + one(t[10]) + "mg  ·  维C " + one(t[11]) + "mg",14,false));
-        microDetails.addView(text("胆固醇 " + one(t[12]) + "mg",14,false));
-        micro.addView(microDetails);
-        toggle.setOnClickListener(v -> {
-            boolean expand = microDetails.getVisibility() != View.VISIBLE;
-            microDetails.setVisibility(expand ? View.VISIBLE : View.GONE);
-            toggle.setText(expand ? "收起 ▴" : "展开 ▾");
-        });
-        content.addView(micro);
-
+        content.addView(microCard(t));
+        content.addView(sectionLabel("餐食记录"));
         for(String meal:MEALS)content.addView(mealCard(meal));
+    }
+
+    private LinearLayout dateControl(){
+        LinearLayout card=box();
+        card.setPadding(dp(8),dp(7),dp(8),dp(7));
+        LinearLayout row=new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button prev=button("‹");
+        Button next=button("›");
+        TextView date=text(selectedDate.format(DATE_FMT),17,true);
+        date.setGravity(Gravity.CENTER);
+
+        Button today=button("今天");
+        today.setVisibility(selectedDate.equals(LocalDate.now())?View.GONE:View.VISIBLE);
+        Button copy=button("复制");
+
+        prev.setOnClickListener(v->{selectedDate=selectedDate.minusDays(1);refreshToday();});
+        next.setOnClickListener(v->{selectedDate=selectedDate.plusDays(1);refreshToday();});
+        today.setOnClickListener(v->{selectedDate=LocalDate.now();refreshToday();});
+        copy.setOnClickListener(v->showCopyRecordsDialog());
+
+        row.addView(prev,new LinearLayout.LayoutParams(dp(44),dp(40)));
+        row.addView(date,new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(today);
+        row.addView(copy);
+        row.addView(next,new LinearLayout.LayoutParams(dp(44),dp(40)));
+        card.addView(row);
+        return card;
+    }
+
+    private TextView sectionLabel(String label){
+        TextView title=text(label,14,true);
+        title.setTextColor(MUTED);
+        title.setPadding(dp(4),dp(7),dp(4),dp(7));
+        return title;
+    }
+
+    private LinearLayout microCard(double[] t){
+        LinearLayout micro = box();
+        LinearLayout microHead = new LinearLayout(this);
+        microHead.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout titleWrap=new LinearLayout(this);
+        titleWrap.setOrientation(LinearLayout.VERTICAL);
+        titleWrap.addView(text("微量营养素",15,true));
+        titleWrap.addView(muted("钙、铁、钾、镁、锌、维C、胆固醇"));
+        Button toggle = button("展开 ▾");
+        microHead.addView(titleWrap,new LinearLayout.LayoutParams(0,-2,1));
+        microHead.addView(toggle);
+        micro.addView(microHead);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(View.GONE);
+        details.setPadding(0,dp(7),0,0);
+        details.addView(text("钙 " + one(t[6]) + "mg  ·  铁 " + one(t[7]) + "mg  ·  钾 " + one(t[8]) + "mg",13,false));
+        details.addView(text("镁 " + one(t[9]) + "mg  ·  锌 " + one(t[10]) + "mg  ·  维C " + one(t[11]) + "mg",13,false));
+        details.addView(text("胆固醇 " + one(t[12]) + "mg",13,false));
+        details.addView(muted("旧版记录不含的微量营养字段按0计算。"));
+        micro.addView(details);
+
+        View.OnClickListener toggleAction=v->{
+            boolean expand=details.getVisibility()!=View.VISIBLE;
+            details.setVisibility(expand?View.VISIBLE:View.GONE);
+            toggle.setText(expand?"收起 ▴":"展开 ▾");
+        };
+        toggle.setOnClickListener(toggleAction);
+        titleWrap.setOnClickListener(toggleAction);
+        return micro;
     }
 
     private void setSummaryTextColor(TextView view, int color) {
@@ -104,9 +149,9 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
         LinearLayout cell = new LinearLayout(this);
         cell.setOrientation(LinearLayout.VERTICAL);
         cell.setGravity(Gravity.CENTER);
-        cell.setPadding(dp(4), dp(5), dp(4), dp(5));
-        TextView label = text(name, 12, false);
-        TextView value = text(one(used) + " / " + one(target) + " " + unit, 13, true);
+        cell.setPadding(dp(3),dp(7),dp(3),dp(3));
+        TextView label = text(name, 11, false);
+        TextView value = text(one(used) + " / " + one(target) + " " + unit, 12, true);
         label.setGravity(Gravity.CENTER); value.setGravity(Gravity.CENTER);
         label.setTextColor(color); value.setTextColor(color);
         cell.addView(label); cell.addView(value);
@@ -117,6 +162,7 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
 
     private LinearLayout mealCard(String meal){
         LinearLayout card = box();
+        card.setPadding(dp(12),dp(9),dp(12),dp(9));
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
 
@@ -131,29 +177,36 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
 
         LinearLayout title = new LinearLayout(this);
         title.setOrientation(LinearLayout.VERTICAL);
-        title.addView(text(meal,17,true));
-        title.addView(muted(one(kcal) + " kcal · " + itemCount + "项"));
+        title.setPadding(dp(2),dp(2),dp(4),dp(2));
+        title.addView(text(meal,16,true));
+        title.addView(muted(itemCount>0 ? one(kcal)+" kcal · "+itemCount+"项" : "尚未记录"));
 
         final int count = itemCount;
-        Button toggle = button(count > 0 ? "展开 ▾" : "无记录");
+        Button toggle = button(count > 0 ? "▾" : "—");
         toggle.setEnabled(count > 0);
-        Button add = button("＋ 添加");
+        Button add = button("＋");
         add.setOnClickListener(v -> showFoodPicker(meal));
 
         head.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        head.addView(toggle);
-        head.addView(add);
+        head.addView(toggle,new LinearLayout.LayoutParams(dp(46),dp(40)));
+        head.addView(add,new LinearLayout.LayoutParams(dp(48),dp(40)));
         card.addView(head);
 
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
         details.setVisibility(View.GONE);
+        details.setPadding(0,dp(6),0,0);
 
         for (NutritionData.Entry e : new ArrayList<>(entries)) {
             if(!selectedDate.toString().equals(e.date) || !meal.equals(e.meal)) continue;
-            LinearLayout row = new LinearLayout(this);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0,dp(7),0,dp(7));
+            LinearLayout item = new LinearLayout(this);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setPadding(dp(9),dp(8),dp(7),dp(8));
+            item.setBackground(rounded(SOFT,12,Color.TRANSPARENT));
+            LinearLayout.LayoutParams itemParams=new LinearLayout.LayoutParams(-1,-2);
+            itemParams.setMargins(0,0,0,dp(6));
+            item.setLayoutParams(itemParams);
+
             LinearLayout detail = new LinearLayout(this);
             detail.setOrientation(LinearLayout.VERTICAL);
             detail.addView(text(e.name,14,true));
@@ -161,10 +214,10 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
                 detail.addView(muted(one(e.amount)+"份 · "+comboWeightSummary(e.components,1d)));
                 detail.addView(muted(componentSummary(e.components,1d)));
             }else{
-                detail.addView(muted(one(e.amount)+e.amountUnit));
+                detail.addView(muted(one(e.amount)+e.amountUnit+" · 蛋白"+one(e.protein)+"g · 脂肪"+one(e.fat)+"g · 碳水"+one(e.carb)+"g"));
             }
-            detail.addView(muted("蛋白"+one(e.protein)+"g · 脂肪"+one(e.fat)+"g · 碳水"+one(e.carb)+"g"));
             TextView k = text(one(e.kcal)+" kcal",13,true);
+            k.setGravity(Gravity.CENTER);
             Button del = button("×");
             del.setOnClickListener(v -> {
                 List<NutritionData.Entry> keep = new ArrayList<>();
@@ -173,18 +226,21 @@ public abstract class NutritionTodayActivity extends NutritionBaseActivity {
                 NutritionData.saveEntries(this,entries);
                 refreshToday();
             });
-            row.addView(detail,new LinearLayout.LayoutParams(0,-2,1));
-            row.addView(k);
-            row.addView(del,new LinearLayout.LayoutParams(dp(56),-2));
-            details.addView(row);
+            item.addView(detail,new LinearLayout.LayoutParams(0,-2,1));
+            item.addView(k);
+            item.addView(del,new LinearLayout.LayoutParams(dp(42),dp(38)));
+            details.addView(item);
         }
 
         card.addView(details);
-        toggle.setOnClickListener(v -> {
+        View.OnClickListener toggleAction=v->{
+            if(count<=0)return;
             boolean expand = details.getVisibility() != View.VISIBLE;
             details.setVisibility(expand ? View.VISIBLE : View.GONE);
-            toggle.setText(expand ? "收起 ▴" : "展开 ▾");
-        });
+            toggle.setText(expand ? "▴" : "▾");
+        };
+        toggle.setOnClickListener(toggleAction);
+        title.setOnClickListener(toggleAction);
         return card;
     }
 }
