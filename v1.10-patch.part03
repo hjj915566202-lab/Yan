@@ -1,0 +1,41 @@
+        if(!pendingOnly){TextView count=muted("共 "+shownList.size()+" 笔    ·    "+yen.format(filteredTotal));count.setPadding(dp(2),0,0,dp(10));content.addView(count);}
+ 
++        List<LedgerStore.Tx> shownList=new ArrayList<>();long filteredTotal=0;
++        for(LedgerStore.Tx t:source){
++            if(t.pending||!t.date.startsWith(selectedMonth)||"固定支出".equals(t.category))continue;
++            if(!"全部".equals(transactionWalletFilter)&&!transactionWalletFilter.equals(t.wallet))continue;
++            if(!"全部".equals(transactionCategoryFilter)&&!transactionCategoryFilter.equals(t.category))continue;
++            shownList.add(t);filteredTotal+=t.amount;
++        }
++        TextView count=muted("共 "+shownList.size()+" 笔    ·    "+yen.format(filteredTotal));count.setPadding(dp(2),0,0,dp(10));content.addView(count);
+         if(shownList.isEmpty()){
+-            LinearLayout empty=surfaceCard();TextView icon=text(pendingOnly?"✓":"—",28,true);icon.setTextColor(Color.rgb(181,188,199));icon.setGravity(Gravity.CENTER);addToCard(empty,icon);
+-            TextView msg=text(pendingOnly?"暂时没有待确认记录":"当前条件下没有流水",16,true);msg.setGravity(Gravity.CENTER);addToCard(empty,msg);
+-            TextView note=muted(pendingOnly?"新的 Google Wallet 支付通知会自动出现在这里。":"可以切换月份、钱包或类别重新查看。");note.setGravity(Gravity.CENTER);empty.addView(note);addSurface(empty);return;
++            LinearLayout empty=surfaceCard();TextView icon=text("—",28,true);icon.setTextColor(Color.rgb(181,188,199));icon.setGravity(Gravity.CENTER);addToCard(empty,icon);
++            TextView msg=text("当前条件下没有流水",16,true);msg.setGravity(Gravity.CENTER);addToCard(empty,msg);
++            TextView note=muted("可以切换月份、钱包或类别重新查看。");note.setGravity(Gravity.CENTER);empty.addView(note);addSurface(empty);return;
+         }
+-
+         for(LedgerStore.Tx t:shownList){
+             LinearLayout card=surfaceCard();card.setPadding(dp(16),dp(14),dp(16),dp(14));
+             LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);top.setGravity(Gravity.CENTER_VERTICAL);
+             TextView merchant=text(t.merchant.isEmpty()?t.category:t.merchant,16,true);TextView amount=text(yen.format(t.amount),20,true);amount.setTextColor(walletAccent(t.wallet));
+             top.addView(merchant,new LinearLayout.LayoutParams(0,-2,1));top.addView(amount);addToCard(card,top);
+             TextView meta=muted(t.date+"   ·   "+t.category+"   ·   "+t.wallet+"钱包   ·   "+t.source);addToCard(card,meta);
+-            if(pendingOnly&&!t.raw.isEmpty()){TextView raw=muted(t.raw);raw.setBackground(rounded(Color.rgb(248,249,252),12));raw.setPadding(dp(10),dp(8),dp(10),dp(8));addToCard(card,raw);}
+             LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.RIGHT);
+-            Button edit=button(pendingOnly?"确认 / 编辑":"编辑");edit.setOnClickListener(v->editTx(t));actions.addView(edit);
++            Button edit=button("编辑");edit.setOnClickListener(v->editTx(t));actions.addView(edit);
+             Space ag=new Space(this);actions.addView(ag,new LinearLayout.LayoutParams(dp(8),1));
+-            Button del=dangerButton("删除");del.setOnClickListener(v->{List<LedgerStore.Tx> a=LedgerStore.load(this);a.removeIf(x->x.id.equals(t.id));LedgerStore.save(this,a);showTransactions(pendingOnly);});actions.addView(del);card.addView(actions);addSurface(card);
++            Button del=dangerButton("删除");del.setOnClickListener(v->{List<LedgerStore.Tx> a=LedgerStore.load(this);a.removeIf(x->x.id.equals(t.id));LedgerStore.save(this,a);showTransactions(false);});actions.addView(del);card.addView(actions);addSurface(card);
+         }
+     }
+ 
+@@ -671,7 +801,7 @@
+         LinearLayout diagnosticCard=surfaceCard();addToCard(diagnosticCard,text("通知诊断",17,true));boolean diagnostic=LedgerStore.diagnosticsEnabled(this);addToCard(diagnosticCard,muted("诊断模式只保留最近 30 条通知，用于排查系统是否把通知交给应用。"));
+         LinearLayout dr=new LinearLayout(this);dr.setOrientation(LinearLayout.HORIZONTAL);Button toggle=button(diagnostic?"关闭诊断":"开启诊断");toggle.setOnClickListener(v->{LedgerStore.setDiagnosticsEnabled(this,!LedgerStore.diagnosticsEnabled(this));showSettings();});dr.addView(toggle,new LinearLayout.LayoutParams(0,-2,1));Space dg=new Space(this);dr.addView(dg,new LinearLayout.LayoutParams(dp(8),1));Button logs=button("查看记录");logs.setOnClickListener(v->{currentScreen="诊断";showDiagnostics();});dr.addView(logs,new LinearLayout.LayoutParams(0,-2,1));diagnosticCard.addView(dr);addSurface(diagnosticCard);
+ 
+-        LinearLayout testCard=surfaceCard();addToCard(testCard,text("测试",17,true));Button test=button("生成一笔 ¥1,280 待确认测试记录");test.setOnClickListener(v->{long amount=WalletNotificationListener.parseAmount("Google Wallet お支払い ¥1,280 テスト商店");LedgerStore.Tx t=new LedgerStore.Tx();t.id="test:"+System.currentTimeMillis();t.date=LedgerStore.today();t.amount=amount;t.merchant="测试商家";t.category="购物";t.wallet="个人";t.source="解析测试";t.raw="Google Wallet お支払い ¥1,280";t.pending=true;LedgerStore.addIfNew(this,t);showTransactions(true);});testCard.addView(test);addSurface(testCard);
++        LinearLayout testCard=surfaceCard();addToCard(testCa
