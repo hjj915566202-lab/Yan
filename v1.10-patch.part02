@@ -1,0 +1,52 @@
+urce);
++        int pendingRawCount=0;for(LedgerStore.Tx t:source)if(t.pending)pendingRawCount++;
++        pageTitle(pendingOnly?"待确认":"流水",pendingOnly?"10 分钟内相同金额的通知会先折叠成一组；确认整组只记 1 笔消费。":monthDisplay(selectedMonth)+" · 支出记录");
+ 
+         LinearLayout tabs=new LinearLayout(this);tabs.setOrientation(LinearLayout.HORIZONTAL);
+-        TextView confirmed=chip("已确认流水",!pendingOnly,COLOR_PRIMARY);TextView pending=chip("待确认",pendingOnly,COLOR_PRIMARY);
++        TextView confirmed=chip("已确认流水",!pendingOnly,COLOR_PRIMARY);
++        String pendingLabel=pendingRawCount==0?"待确认":"待确认 · "+pendingGroups.size()+"组";
++        TextView pending=chip(pendingLabel,pendingOnly,COLOR_PRIMARY);
+         confirmed.setOnClickListener(v->{currentScreen="流水";showTransactions(false);});pending.setOnClickListener(v->{currentScreen="待确认";showTransactions(true);});
+         tabs.addView(confirmed,new LinearLayout.LayoutParams(0,-2,1));Space tg=new Space(this);tabs.addView(tg,new LinearLayout.LayoutParams(dp(8),1));tabs.addView(pending,new LinearLayout.LayoutParams(0,-2,1));
+         LinearLayout.LayoutParams tlp=new LinearLayout.LayoutParams(-1,-2);tlp.setMargins(0,0,0,dp(12));content.addView(tabs,tlp);
+@@ -311,35 +419,57 @@
+             row.addView(walletChip,new LinearLayout.LayoutParams(0,-2,1));Space gap=new Space(this);row.addView(gap,new LinearLayout.LayoutParams(dp(8),1));row.addView(catChip,new LinearLayout.LayoutParams(0,-2,1));filters.addView(row);addSurface(filters);
+         }
+ 
+-        List<LedgerStore.Tx> source=LedgerStore.load(this);List<LedgerStore.Tx> shownList=new ArrayList<>();long filteredTotal=0;
+-        for(LedgerStore.Tx t:source){
+-            if(pendingOnly){if(!t.pending)continue;}
+-            else{
+-                if(t.pending||!t.date.startsWith(selectedMonth)||"固定支出".equals(t.category))continue;
+-                if(!"全部".equals(transactionWalletFilter)&&!transactionWalletFilter.equals(t.wallet))continue;
+-                if(!"全部".equals(transactionCategoryFilter)&&!transactionCategoryFilter.equals(t.category))continue;
++        if(pendingOnly){
++            if(pendingGroups.isEmpty()){
++                LinearLayout empty=surfaceCard();TextView icon=text("✓",28,true);icon.setTextColor(Color.rgb(181,188,199));icon.setGravity(Gravity.CENTER);addToCard(empty,icon);
++                TextView msg=text("暂时没有待确认记录",16,true);msg.setGravity(Gravity.CENTER);addToCard(empty,msg);
++                TextView note=muted("新支付通知会自动出现在这里；10 分钟内相同金额会合并显示。 ");note.setGravity(Gravity.CENTER);empty.addView(note);addSurface(empty);return;
+             }
+-            shownList.add(t);filteredTotal+=t.amount;
++            TextView summary=muted("当前 "+pendingGroups.size()+" 组候选 · 共 "+pendingRawCount+" 条原始通知");summary.setPadding(dp(2),0,0,dp(10));content.addView(summary);
++            for(PendingGroup group:pendingGroups){
++                LedgerStore.Tx first=group.items.get(0);boolean merged=group.items.size()>1;
++                LinearLayout card=surfaceCard();card.setPadding(dp(16),dp(14),dp(16),dp(14));
++                LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);top.setGravity(Gravity.CENTER_VERTICAL);
++                TextView merchant=text(pendingGroupMerchant(group),16,true);TextView amount=text(yen.format(group.amount),20,true);amount.setTextColor(walletAccent(first.wallet));
++                top.addView(merchant,new LinearLayout.LayoutParams(0,-2,1));top.addView(amount);addToCard(card,top);
++                if(merged){
++                    TextView badge=chip("已合并 "+group.items.size()+" 条通知 · 10分钟内同额",true,COLOR_PRIMARY);badge.setClickable(false);LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-2);bp.setMargins(0,0,0,dp(8));card.addView(badge,bp);
++                }
++                addToCard(card,muted(notificationTimeText(first.notificationTime)+"   ·   "+pendingGroupSources(group)));
++                Button details=button(merged?"展开查看 "+group.items.size()+" 条原始通知":"查看原始通知");details.setOnClickListener(v->showPendingRawDetails(group));addToCard(card,details);
++                LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.RIGHT);
++                Button edit=button(merged?"确认整组 / 编辑":"确认 / 编辑");edit.setOnClickListener(v->editPendingGroup(group));actions.addView(edit);
++                if(merged){Space sg=new Space(this);actions.addView(sg,new LinearLayout.LayoutParams(dp(8),1));Button split=button("拆分为单条");split.setOnClickListener(v->splitPendingGroup(group));actions.addView(split);}
++                Space ag=new Space(this);actions.addView(ag,new LinearLayout.LayoutParams(dp(8),1));
++                Button del=dangerButton(merged?"删除整组":"删除");del.setOnClickListener(v->{if(merged)new AlertDialog.Builder(this).setTitle("删除这组通知？").setMessage("将删除这 "+group.items.size()+" 条待确认原始通知，不会生成正式流水。").setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->deletePendingGroup(group)).show();else deletePendingGroup(group);});actions.addView(del);
++                card.addView(actions);addSurface(card);
++            }
++            return;
+         }
+-
