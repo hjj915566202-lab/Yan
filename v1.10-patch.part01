@@ -1,0 +1,73 @@
+p group){
++        Set<String> names=new LinkedHashSet<>();
++        for(LedgerStore.Tx t:group.items){String name=t.merchant==null?"":t.merchant.trim();if(!name.isEmpty())names.add(name);}
++        if(names.isEmpty())return "待确认支付";
++        String first=names.iterator().next();
++        return names.size()>1?first+" 等":first;
++    }
++
++    private String pendingGroupSources(PendingGroup group){
++        Set<String> sources=new LinkedHashSet<>();
++        for(LedgerStore.Tx t:group.items)if(t.source!=null&&!t.source.trim().isEmpty())sources.add(t.source.trim());
++        if(sources.isEmpty())return "自动识别通知";
++        StringBuilder out=new StringBuilder();int i=0;
++        for(String source:sources){if(i++>0)out.append(" · ");out.append(source);if(i>=3&&sources.size()>3){out.append(" 等");break;}}
++        return out.toString();
++    }
++
++    private void showPendingRawDetails(PendingGroup group){
++        StringBuilder detail=new StringBuilder();
++        for(int i=0;i<group.items.size();i++){
++            LedgerStore.Tx t=group.items.get(i);
++            if(i>0)detail.append("\n\n────────────\n\n");
++            detail.append("通知 ").append(i+1).append(" / ").append(group.items.size()).append("   ").append(notificationTimeText(t.notificationTime)).append("\n");
++            detail.append(t.source==null?"":t.source).append("\n");
++            detail.append(t.raw==null||t.raw.isEmpty()?"（无原始通知文本）":t.raw);
++        }
++        TextView body=text(detail.toString(),13,false);body.setTextIsSelectable(true);body.setPadding(dp(20),dp(8),dp(20),dp(8));
++        ScrollView scroll=new ScrollView(this);scroll.addView(body);
++        new AlertDialog.Builder(this).setTitle(group.items.size()>1?"已合并 "+group.items.size()+" 条通知":"原始通知").setView(scroll).setPositiveButton("关闭",null).show();
++    }
++
++    private void splitPendingGroup(PendingGroup group){
++        List<LedgerStore.Tx> all=LedgerStore.load(this);Set<String> ids=new LinkedHashSet<>();
++        for(LedgerStore.Tx t:group.items)ids.add(t.id);
++        for(LedgerStore.Tx t:all)if(ids.contains(t.id))t.mergeExcluded=true;
++        LedgerStore.save(this,all);showTransactions(true);
++    }
++
++    private void deletePendingGroup(PendingGroup group){
++        List<LedgerStore.Tx> all=LedgerStore.load(this);Set<String> ids=new LinkedHashSet<>();
++        for(LedgerStore.Tx t:group.items)ids.add(t.id);
++        all.removeIf(t->ids.contains(t.id));LedgerStore.save(this,all);showTransactions(true);
++    }
++
++    private void editPendingGroup(PendingGroup group){
++        LedgerStore.Tx first=group.items.get(0);
++        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(30,10,30,0);
++        EditText amount=input("例如 1280",String.valueOf(first.amount),true);
++        EditText merchant=input("商家/备注",first.merchant,false);
++        EditText date=input("YYYY-MM-DD",first.date,false);
++        Spinner cat=spinner(cats,first.category);Spinner wallet=spinner(wallets,first.wallet);
++        box.addView(labeledInput("金额（日元）",amount));box.addView(labeledInput("商家或备注",merchant));box.addView(labeledInput("日期",date));
++        box.addView(text("支出分类",14,true));box.addView(cat);box.addView(text("从哪个钱包支出",14,true));box.addView(wallet);
++        if(group.items.size()>1){TextView note=muted("确认后，这 "+group.items.size()+" 条相同金额通知只会生成 1 笔正式消费。若其实是多笔真实支付，请先取消并选择“拆分为单条”。");note.setPadding(0,dp(10),0,0);box.addView(note);}
++        new AlertDialog.Builder(this).setTitle(group.items.size()>1?"确认合并支付（"+group.items.size()+" 条通知）":"确认 / 编辑流水").setView(box).setNegativeButton("取消",null).setPositiveButton("保存",(d,w)->{
++            try{
++                long a=Long.parseLong(amount.getText().toString().trim());if(a<=0)return;
++                List<LedgerStore.Tx> list=LedgerStore.load(this);Set<String> ids=new LinkedHashSet<>();for(LedgerStore.Tx t:group.items)ids.add(t.id);list.removeIf(t->ids.contains(t.id));
++                LedgerStore.Tx t=new LedgerStore.Tx();t.id=group.items.size()>1?"merged:"+System.currentTimeMillis():first.id;
++                t.amount=a;t.merchant=merchant.getText().toString().trim();t.date=date.getText().toString().trim();t.category=(String)cat.getSelectedItem();t.wallet=(String)wallet.getSelectedItem();
++                t.pending=false;t.notificationTime=first.notificationTime;t.mergeExcluded=false;
++                t.source=group.items.size()>1?"合并通知（"+group.items.size()+"条）":first.source;
++                t.raw=group.items.size()>1?"由 "+group.items.size()+" 条 10 分钟内相同金额的通知合并确认。":first.raw;
++                list.add(t);LedgerStore.save(this,list);currentScreen="待确认";showTransactions(true);
++            }catch(Exception ignored){}
++        }).show();
++    }
++
+     private void showTransactions(boolean pendingOnly){
+         currentScreen=pendingOnly?"待确认":"流水";clear();
+-        pageTitle(pendingOnly?"待确认":"流水",pendingOnly?"确认自动识别的支付通知后才会计入正式流水。":monthDisplay(selectedMonth)+" · 支出记录");
++        List<LedgerStore.Tx> source=LedgerStore.load(this);
++        List<PendingGroup> pendingGroups=buildPendingGroups(so
