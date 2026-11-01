@@ -1,0 +1,108 @@
+--- a/app/src/main/java/com/offline/ledger/LedgerStore.java
++++ b/app/src/main/java/com/offline/ledger/LedgerStore.java
+@@ -25,14 +25,15 @@
+ 
+     public static final class Tx {
+         public String id, date, merchant, category, wallet, source, raw;
+-        public long amount;
+-        public boolean pending;
++        public long amount, notificationTime;
++        public boolean pending, mergeExcluded;
+ 
+         JSONObject json() throws Exception {
+             JSONObject o = new JSONObject();
+             o.put("id", id); o.put("date", date); o.put("merchant", merchant);
+             o.put("category", category); o.put("wallet", wallet); o.put("source", source);
+             o.put("raw", raw); o.put("amount", amount); o.put("pending", pending);
++            o.put("notificationTime", notificationTime); o.put("mergeExcluded", mergeExcluded);
+             return o;
+         }
+         static Tx from(JSONObject o) {
+@@ -41,6 +42,7 @@
+             t.category=o.optString("category","购物"); t.wallet=o.optString("wallet","个人");
+             t.source=o.optString("source","手动"); t.raw=o.optString("raw");
+             t.amount=o.optLong("amount"); t.pending=o.optBoolean("pending");
++            t.notificationTime=o.optLong("notificationTime",0); t.mergeExcluded=o.optBoolean("mergeExcluded",false);
+             return t;
+         }
+     }
+--- a/app/src/main/java/com/offline/ledger/WalletNotificationListener.java
++++ b/app/src/main/java/com/offline/ledger/WalletNotificationListener.java
+@@ -57,6 +57,7 @@
+             tx.merchant=merchant(title,detail); tx.category=guessCategory(all);
+             tx.wallet="个人"; tx.source=walletPackage?"Google 钱包通知":"支付通知："+pkg;
+             tx.raw="来源："+pkg+"\n"+all; tx.pending=true;
++            tx.notificationTime=sbn.getPostTime(); tx.mergeExcluded=false;
+             imported=LedgerStore.addIfNew(this,tx);
+             reason=imported?"已加入待确认":"重复通知，未重复加入";
+         }
+--- a/app/src/main/java/com/offline/ledger/MainActivity.java
++++ b/app/src/main/java/com/offline/ledger/MainActivity.java
+@@ -25,11 +25,14 @@
+ import java.time.YearMonth;
+ import java.time.temporal.ChronoUnit;
+ import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.Date;
+ import java.util.LinkedHashMap;
++import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Locale;
+ import java.util.Map;
++import java.util.Set;
+ 
+ public class MainActivity extends Activity {
+     private LinearLayout root, content, bottomNav;
+@@ -51,6 +54,12 @@
+ 
+     private static final String[] INCOME_KEYS={"salary","transportAllowance","bonus","extraIncome"};
+     private static final String[] CARRY_KEYS={"salary","transportAllowance"};
++    private static final long PENDING_MERGE_WINDOW_MS=10L*60L*1000L;
++
++    private static final class PendingGroup {
++        final List<LedgerStore.Tx> items=new ArrayList<>();
++        long amount,anchorTime;
++    }
+ 
+     @Override public void onCreate(Bundle b) { super.onCreate(b); showShell(); }
+     @Override protected void onResume(){ super.onResume(); if(content!=null) showCurrentScreen(); }
+@@ -236,7 +245,7 @@
+         Space qGap=new Space(this);qRow.addView(qGap,new LinearLayout.LayoutParams(dp(10),1));
+         Button planBtn=button("调整规划");planBtn.setOnClickListener(v->{currentScreen="规划";showPlan();});qRow.addView(planBtn,new LinearLayout.LayoutParams(0,-2,1));
+         quick.addView(qRow);
+-        if(pending>0){addSpacer(quick,10);Button p=button("●  "+pending+" 笔支付通知待确认");p.setTextColor(COLOR_DANGER);p.setOnClickListener(v->{currentScreen="待确认";showTransactions(true);});quick.addView(p);}
++        if(pending>0){int groups=buildPendingGroups(all).size();addSpacer(quick,10);Button p=button("●  "+groups+" 组待确认 · "+pending+" 条通知");p.setTextColor(COLOR_DANGER);p.setOnClickListener(v->{currentScreen="待确认";showTransactions(true);});quick.addView(p);}
+         addSurface(quick);
+ 
+         sectionTitle("支出分类","点击分类即可查看对应钱包与类别的本月流水。");
+@@ -290,12 +299,111 @@
+         currentScreen="流水";showTransactions(false);
+     }
+ 
++    private List<PendingGroup> buildPendingGroups(List<LedgerStore.Tx> source){
++        List<LedgerStore.Tx> pending=new ArrayList<>();
++        for(LedgerStore.Tx t:source)if(t.pending)pending.add(t);
++        Collections.sort(pending,(a,b)->Long.compare(b.notificationTime,a.notificationTime));
++        List<PendingGroup> groups=new ArrayList<>();
++        for(LedgerStore.Tx t:pending){
++            PendingGroup match=null;
++            if(t.notificationTime>0&&!t.mergeExcluded){
++                for(PendingGroup g:groups){
++                    if(g.items.isEmpty()||g.items.get(0).mergeExcluded||g.anchorTime<=0||g.amount!=t.amount)continue;
++                    if(g.anchorTime-t.notificationTime<=PENDING_MERGE_WINDOW_MS){match=g;break;}
++                }
++            }
++            if(match==null){
++                match=new PendingGroup();match.amount=t.amount;match.anchorTime=t.notificationTime;groups.add(match);
++            }
++            match.items.add(t);
++        }
++        return groups;
++    }
++
++    private String notificationTimeText(long time){
++        if(time<=0)return "时间未记录";
++        return new SimpleDateFormat("MM-dd HH:mm:ss",Locale.JAPAN).format(new Date(time));
++    }
++
++    private String pendingGroupMerchant(PendingGrou
