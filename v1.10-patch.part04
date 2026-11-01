@@ -1,0 +1,17 @@
+rd,text("测试",17,true));Button test=button("生成一笔 ¥1,280 待确认测试记录");test.setOnClickListener(v->{long amount=WalletNotificationListener.parseAmount("Google Wallet お支払い ¥1,280 テスト商店");LedgerStore.Tx t=new LedgerStore.Tx();t.id="test:"+System.currentTimeMillis();t.date=LedgerStore.today();t.amount=amount;t.merchant="测试商家";t.category="购物";t.wallet="个人";t.source="解析测试";t.raw="Google Wallet お支払い ¥1,280";t.pending=true;t.notificationTime=System.currentTimeMillis();t.mergeExcluded=false;LedgerStore.addIfNew(this,t);showTransactions(true);});testCard.addView(test);addSurface(testCard);
+ 
+         LinearLayout danger=surfaceCard();addToCard(danger,text("数据管理",17,true));addToCard(danger,muted("清空操作会删除全部流水、各月份规划和通知诊断，无法撤销。"));Button clear=dangerButton("清空全部本地数据");clear.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("确认清空？").setMessage("该操作无法撤销。建议确认没有需要保留的数据后再继续。").setNegativeButton("取消",null).setPositiveButton("清空",(d,w)->{LedgerStore.clearAll(this);showDashboard();}).show());danger.addView(clear);addSurface(danger);
+     }
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@
+         applicationId 'com.offline.ledger'
+         minSdk 26
+         targetSdk 35
+-        versionCode 11
+-        versionName '1.9.1'
++        versionCode 12
++        versionName '1.10.0'
+     }
+ 
+     buildTypes {
