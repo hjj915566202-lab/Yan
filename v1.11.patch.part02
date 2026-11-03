@@ -1,0 +1,58 @@
++
++        LinearLayout granularityRow=new LinearLayout(this);granularityRow.setOrientation(LinearLayout.HORIZONTAL);
++        String[] granularities={"每日","每周","每月","每年"};
++        for(int i=0;i<granularities.length;i++){
++            String g=granularities[i];TextView gc=chip(g,g.equals(analysisTrendGranularity),accent);
++            gc.setOnClickListener(v->{analysisTrendGranularity=g;showAnalytics();});
++            granularityRow.addView(gc,new LinearLayout.LayoutParams(0,-2,1));
++            if(i<granularities.length-1){Space gap=new Space(this);granularityRow.addView(gap,new LinearLayout.LayoutParams(dp(6),1));}
++        }
++        addToCard(trendCard,granularityRow);
++
++        TrendData aggregated=aggregateTrend(data,analysisTrendGranularity);
++        ExpenseTrendView trend=new ExpenseTrendView(this);trend.setData(aggregated.labels,aggregated.series);trend.setFocus(currentFocus);trend.setWalletAccent(accent);trend.setGranularity(analysisTrendGranularity);trendCard.addView(trend,new LinearLayout.LayoutParams(-1,dp(360)));
++        focusChip.setOnClickListener(v->showChoiceDialog("高亮趋势",focusValues,focusForWallet(wallet),value->{setFocusForWallet(wallet,value);trend.setFocus(value);focusChip.setText("高亮 · "+value);}));addSurface(trendCard);
+ 
+         LinearLayout pieCard=surfaceCard();addToCard(pieCard,text("花费占比",17,true));
+-        TextView pn=muted(analysisIncludeFixed?"包含所涉及月份的完整固定支出；固定项目不会跳转到日常流水。":"只显示实际日常流水；点击扇区或列表可以筛选本月流水。");addToCard(pieCard,pn);
+-        ExpensePieView pie=new ExpensePieView(this);pie.setData(data.pie);pie.setWalletAccent(accent);pie.setOnSliceClickListener(slice->{boolean daily=false;for(String cat:cats)if(cat.equals(slice.label)){daily=true;break;}if(daily)openFilteredTransactions(wallet,slice.label);else Toast.makeText(this,"固定支出不属于日常流水",Toast.LENGTH_SHORT).show();});pieCard.addView(pie,new LinearLayout.LayoutParams(-1,-2));addSurface(pieCard);
++        TextView pn=muted(analysisIncludeFixed?"包含所涉及月份的完整固定支出；固定项目不会跳转到日常流水。":"只显示实际日常流水；点击分类可筛选本月流水。总计视图会同时统计两个钱包。 ");addToCard(pieCard,pn);
++        ExpensePieView pie=new ExpensePieView(this);pie.setData(data.pie);pie.setWalletAccent(accent);pie.setOnSliceClickListener(slice->{boolean daily=false;for(String cat:cats)if(cat.equals(slice.label)){daily=true;break;}if(daily){if("总计".equals(wallet))openFilteredTransactions("全部",slice.label);else openFilteredTransactions(wallet,slice.label);}else Toast.makeText(this,"固定支出不属于日常流水",Toast.LENGTH_SHORT).show();});pieCard.addView(pie,new LinearLayout.LayoutParams(-1,-2));addSurface(pieCard);
+     }
+ 
+     private LinearLayout analysisMetric(String label,long value,int accent){
+@@ -761,7 +826,7 @@ public class MainActivity extends Activity {
+     }
+ 
+     private void showAnalytics(){
+-        currentScreen="分析";clear();ensureAnalysisRange();pageTitle("支出分析","按日期范围查看趋势与分类占比");
++        currentScreen="分析";clear();ensureAnalysisRange();pageTitle("支出分析","按日期范围查看每日、每周、每月和每年趋势与分类占比");
+ 
+         LinearLayout controls=surfaceCard();
+         LinearLayout dates=new LinearLayout(this);dates.setOrientation(LinearLayout.HORIZONTAL);
+@@ -771,15 +836,20 @@ public class MainActivity extends Activity {
+         Button reset=ghostButton("恢复当前所选月份");reset.setOnClickListener(v->{analysisRangeMonth="";ensureAnalysisRange();showAnalytics();});controls.addView(reset);addSurface(controls);
+ 
+         if(analysisEnd.isBefore(analysisStart)){LinearLayout err=surfaceCard();TextView e=text("结束日期不能早于开始日期。",15,true);e.setTextColor(COLOR_DANGER);err.addView(e);addSurface(err);return;}
+-        AnalysisData personal=buildAnalysis(analysisStart,analysisEnd,"个人",analysisIncludeFixed);AnalysisData shared=buildAnalysis(analysisStart,analysisEnd,"公用",analysisIncludeFixed);
+-        long combined=personal.dailyTotal+shared.dailyTotal+(analysisIncludeFixed?personal.fixedTotal+shared.fixedTotal:0);
++        AnalysisData personal=buildAnalysis(analysisStart,analysisEnd,"个人",analysisIncludeFixed);
++        AnalysisData shared=buildAnalysis(analysisStart,analysisEnd,"公用",analysisIncludeFixed);
++        AnalysisData totalData=buildAnalysis(analysisStart,analysisEnd,"总计",analysisIncludeFixed);
++        long combined=totalData.dailyTotal+(analysisIncludeFixed?totalData.fixedTotal:0);
+         LinearLayout total=surfaceCard();total.setBackground(rounded(Color.rgb(36,49,79),20));TextView tl=text(analysisIncludeFixed?"区间合计支出 · 含固定":"区间流水合计支出",13,true);tl.setTextColor(Color.rgb(205,216,241));TextView tv=text(yen.format(combined),29,true);tv.setTextColor(Color.WHITE);addToCard(total,tl);total.addView(tv);addSurface(total);
+ 
+         LinearLayout tabs=new LinearLayout(this);tabs.setOrientation(LinearLayout.HORIZONTAL);
+-        TextView pTab=chip("个人钱包", "个人".equals(analysisWallet),COLOR_PERSONAL);TextView sTab=chip("公用钱包","公用".equals(analysisWallet),COLOR_SHARED);
+-        pTab.setOnClickListener(v->{analysisWallet="个人";showAnalytics();});sTab.setOnClickListener(v->{analysisWallet="公用";showAnalytics();});tabs.addView(pTab,new LinearLayout.LayoutParams(0,-2,1));Space wg=new Space(this);tabs.addView(wg,new LinearLayout.LayoutParams(dp(8),1));tabs.addView(sTab,new LinearLayout.LayoutParams(0,-2,1));LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(-1,-2);wlp.setMargins(0,0,0,dp(12));content.addView(tabs,wlp);
++        TextView totalTab=chip("总计","总计".equals(analysisWallet),COLOR_PRIMARY);
++        TextView pTab=chip("个人","个人".equals(analysisWallet),COLOR_PERSONAL);
++        TextView sTab=chip("公用","公用".equals(analysisWallet),COLOR_SHARED);
++        totalTab.setOnClickListener(v->{analysisWallet="总计";showAnalytics();});pTab.setOnClickListener(v->{analysisWallet="个人";showAnalytics();});sTab.setOnClickListener(v->{analysisWallet="公用";showAnalytics();});
++        tabs.addView(totalTab,new LinearLayout.LayoutParams(0,-2,1));Space wg0=new Space(this);tabs.addView(wg0,new LinearLayout.LayoutParams(dp(6),1));tabs.addView(pTab,new LinearLayout.LayoutParams(0,-2,1));Space wg1=new Space(this);tabs.addView(wg1,new LinearLayout.LayoutParams(dp(6),1));tabs.addView(sTab,new LinearLayout.LayoutParams(0,-2,1));LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(-1,-2);wlp.setMargins(0,0,0,dp(12));content.addView(tabs,wlp);
+ 
+-        AnalysisData selected="公用".equals(analysisWallet)?shared:personal;showWalletAnalytics(analysisWallet,selected);
++        AnalysisData selected="总计".equals(analysisWallet)?totalData:("公用".equals(analysisWallet)?shared:personal);showWalletAnalytics(analysisWallet,selected);
+     }
+ 
+     private boolean notificationAccessEnabled(){
