@@ -1,0 +1,85 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index 58e0327..1b21344 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@ android {
+         applicationId 'com.offline.ledger'
+         minSdk 26
+         targetSdk 35
+-        versionCode 12
+-        versionName '1.10.0'
++        versionCode 13
++        versionName '1.11.0'
+     }
+ 
+     buildTypes {
+diff --git a/app/src/main/java/com/offline/ledger/ExpenseTrendView.java b/app/src/main/java/com/offline/ledger/ExpenseTrendView.java
+index 8f0cfe9..b5c6aba 100644
+--- a/app/src/main/java/com/offline/ledger/ExpenseTrendView.java
++++ b/app/src/main/java/com/offline/ledger/ExpenseTrendView.java
+@@ -20,6 +20,7 @@ public class ExpenseTrendView extends View {
+     private List<String> dates = new ArrayList<>();
+     private Map<String,long[]> series = new LinkedHashMap<>();
+     private String focus = "全体趋势";
++    private String granularity = "每日";
+     private int walletAccent=Color.rgb(55,108,231);
+ 
+     private static final String TOTAL = "总支出";
+@@ -43,6 +44,7 @@ public class ExpenseTrendView extends View {
+     }
+ 
+     public void setFocus(String focus) {this.focus = focus == null ? "全体趋势" : focus;invalidate();}
++    public void setGranularity(String granularity){this.granularity=granularity==null?"每日":granularity;invalidate();}
+     public void setWalletAccent(int color){walletAccent=color;invalidate();}
+ 
+     @Override protected void onMeasure(int widthMeasureSpec,int heightMeasureSpec) {
+@@ -168,7 +170,9 @@ public class ExpenseTrendView extends View {
+ 
+     private String shortDate(String iso) {
+         if(iso==null)return "";
+-        if(dates.size()>370 && iso.length()>=7)return iso.substring(0,7).replace("-","/");
++        if("每年".equals(granularity))return iso.length()>=4?iso.substring(0,4):iso;
++        if("每月".equals(granularity))return iso.length()>=7?iso.substring(0,7).replace("-","/"):iso;
++        if("每周".equals(granularity))return iso.length()>=10?iso.substring(5,10).replace("-","/")+"周":iso;
+         if(iso.length()>=10)return iso.substring(5,10).replace("-","/");
+         return iso;
+     }
+diff --git a/app/src/main/java/com/offline/ledger/MainActivity.java b/app/src/main/java/com/offline/ledger/MainActivity.java
+index 1d024c4..c266339 100644
+--- a/app/src/main/java/com/offline/ledger/MainActivity.java
++++ b/app/src/main/java/com/offline/ledger/MainActivity.java
+@@ -47,6 +47,8 @@ public class MainActivity extends Activity {
+     private String analysisRangeMonth="";
+     private String analysisPersonalFocus="全体趋势";
+     private String analysisSharedFocus="全体趋势";
++    private String analysisTotalFocus="全体趋势";
++    private String analysisTrendGranularity="每日";
+     private boolean analysisIncludeFixed=false;
+     private String transactionWalletFilter="全部";
+     private String transactionCategoryFilter="全部";
+@@ -113,7 +115,7 @@ public class MainActivity extends Activity {
+         v.setTextColor(active?Color.WHITE:COLOR_TEXT);v.setBackground(ripple(active?accent:COLOR_SURFACE,active?accent:COLOR_BORDER,14));v.setClickable(true);return v;
+     }
+     private void addSpacer(LinearLayout parent,int h){Space sp=new Space(this);parent.addView(sp,new LinearLayout.LayoutParams(1,dp(h)));}
+-    private int walletAccent(String wallet){return "公用".equals(wallet)?COLOR_SHARED:COLOR_PERSONAL;}
++    private int walletAccent(String wallet){if("公用".equals(wallet))return COLOR_SHARED;if("总计".equals(wallet))return COLOR_PRIMARY;return COLOR_PERSONAL;}
+ 
+     private void showShell(){
+         getWindow().setStatusBarColor(Color.WHITE);
+@@ -684,6 +686,11 @@ public class MainActivity extends Activity {
+         long dailyTotal,fixedTotal;
+     }
+ 
++    private static final class TrendData {
++        final List<String> labels=new ArrayList<>();
++        final Map<String,long[]> series=new LinkedHashMap<>();
++    }
++
+     private AnalysisData buildAnalysis(LocalDate start,LocalDate end,String wallet,boolean includeFixed){
+         AnalysisData out=new AnalysisData();
+         int days=(int)ChronoUnit.DAYS.between(start,end)+1;
+@@ -700,7 +707,7 @@ public class MainActivity extends Activity {
+         String startText=start.toString(),endText=end.toString();
+         for(LedgerStore.Tx tx:LedgerStore.load(this)){
+             if(tx.pending || "固定支出".equals(tx.category) || tx.date==null)continue;
+-            if(!wallet.equals(tx.wallet))continue;
