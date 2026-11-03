@@ -1,0 +1,85 @@
++            if(!"总计".equals(wallet)&&!wallet.equals(tx.wallet))continue;
+             if(tx.date.compareTo(startText)<0 || tx.date.compareTo(endText)>0)continue;
+             Integer index=dayIndex.get(tx.date);if(index==null)continue;
+             String category="其他";
+@@ -716,12 +723,13 @@ public class MainActivity extends Activity {
+             YearMonth last=YearMonth.from(end);
+             while(!cursor.isAfter(last)){
+                 for(LedgerStore.FixedExpense item:LedgerStore.fixedExpenses(this,cursor.toString())){
+-                    if(!wallet.equals(item.wallet)||item.amount<=0)continue;
++                    if(!"总计".equals(wallet)&&!wallet.equals(item.wallet))continue;
++                    if(item.amount<=0)continue;
+                     String label="固定·"+item.name;
+                     pieTotals.put(label,pieTotals.getOrDefault(label,0L)+item.amount);
+                     out.fixedTotal+=item.amount;
+                 }
+-                if("个人".equals(wallet)){
++                if("个人".equals(wallet)||"总计".equals(wallet)){
+                     long cardAmount=LedgerStore.creditCardPayment(this,cursor.toString());
+                     if(cardAmount>0){
+                         String label="固定·信用卡还款";
+@@ -736,8 +744,53 @@ public class MainActivity extends Activity {
+         return out;
+     }
+ 
++    private String trendBucket(String isoDate,String granularity){
++        LocalDate date=LocalDate.parse(isoDate);
++        if("每年".equals(granularity))return String.valueOf(date.getYear());
++        if("每月".equals(granularity))return YearMonth.from(date).toString();
++        if("每周".equals(granularity))return date.minusDays(date.getDayOfWeek().getValue()-1L).toString();
++        return isoDate;
++    }
++
++    private TrendData aggregateTrend(AnalysisData data,String granularity){
++        TrendData out=new TrendData();
++        if(data.dates.isEmpty())return out;
++        Map<String,Integer> bucketIndex=new LinkedHashMap<>();
++        for(String date:data.dates){
++            String bucket=trendBucket(date,granularity);
++            if(!bucketIndex.containsKey(bucket)){bucketIndex.put(bucket,bucketIndex.size());out.labels.add(bucket);}
++        }
++        for(String key:data.trend.keySet())out.series.put(key,new long[out.labels.size()]);
++        for(int i=0;i<data.dates.size();i++){
++            Integer target=bucketIndex.get(trendBucket(data.dates.get(i),granularity));if(target==null)continue;
++            for(Map.Entry<String,long[]> entry:data.trend.entrySet()){
++                long[] source=entry.getValue();if(i<source.length)out.series.get(entry.getKey())[target]+=source[i];
++            }
++        }
++        return out;
++    }
++
++    private String trendTitle(){
++        if("每周".equals(analysisTrendGranularity))return "每周花费趋势";
++        if("每月".equals(analysisTrendGranularity))return "每月花费趋势";
++        if("每年".equals(analysisTrendGranularity))return "每年花费趋势";
++        return "每日花费趋势";
++    }
++
++    private String focusForWallet(String wallet){
++        if("公用".equals(wallet))return analysisSharedFocus;
++        if("总计".equals(wallet))return analysisTotalFocus;
++        return analysisPersonalFocus;
++    }
++
++    private void setFocusForWallet(String wallet,String value){
++        if("公用".equals(wallet))analysisSharedFocus=value;
++        else if("总计".equals(wallet))analysisTotalFocus=value;
++        else analysisPersonalFocus=value;
++    }
++
+     private void showWalletAnalytics(String wallet,AnalysisData data){
+-        boolean personal="个人".equals(wallet);int accent=walletAccent(wallet);String currentFocus=personal?analysisPersonalFocus:analysisSharedFocus;
++        int accent=walletAccent(wallet);String currentFocus=focusForWallet(wallet);
+         LinearLayout metrics=new LinearLayout(this);metrics.setOrientation(LinearLayout.HORIZONTAL);
+         metrics.addView(analysisMetric("流水支出",data.dailyTotal,accent),new LinearLayout.LayoutParams(0,-2,1));
+         if(analysisIncludeFixed){Space mg1=new Space(this);metrics.addView(mg1,new LinearLayout.LayoutParams(dp(8),1));metrics.addView(analysisMetric("固定支出",data.fixedTotal,accent),new LinearLayout.LayoutParams(0,-2,1));Space mg2=new Space(this);metrics.addView(mg2,new LinearLayout.LayoutParams(dp(8),1));metrics.addView(analysisMetric("合计",data.dailyTotal+data.fixedTotal,accent),new LinearLayout.LayoutParams(0,-2,1));}
+@@ -745,15 +798,27 @@ public class MainActivity extends Activity {
+ 
+         LinearLayout trendCard=surfaceCard();
+         LinearLayout th=new LinearLayout(this);th.setOrientation(LinearLayout.HORIZONTAL);th.setGravity(Gravity.CENTER_VERTICAL);
+-        LinearLayout thText=new LinearLayout(this);thText.setOrientation(LinearLayout.VERTICAL);thText.addView(text("每日花费趋势",17,true));thText.addView(muted("点击右侧可切换高亮类别"));th.addView(thText,new LinearLayout.LayoutParams(0,-2,1));
++        LinearLayout thText=new LinearLayout(this);thText.setOrientation(LinearLayout.VERTICAL);thText.addView(text(trendTitle(),17,true));thText.addView(muted("总支出与各分类 · 使用上方日期范围聚合"));th.addView(thText,new LinearLayout.LayoutParams(0,-2,1));
+         TextView focusChip=chip("高亮 · "+currentFocus,false,accent);focusChip.setTextColor(accent);String[] focusValues=new String[cats.length+1];focusValues[0]="全体趋势";System.arraycopy(cats,0,focusValues,1,cats.length);
+         th.addView(focusChip);addToCard(trendCard,th);
+-        ExpenseTrendView trend=new ExpenseTrendView(this);trend.setData(data.dates,data.trend);trend.setFocus(currentFocus);trend.setWalletAccent(accent);trendCard.addView(trend,new LinearLayout.LayoutParams(-1,dp(360)));
+-        focusChip.setOnClickListener(v->showChoiceDialog("高亮趋势",focusValues,personal?analysisPersonalFocus:analysisSharedFocus,value->{if(personal)analysisPersonalFocus=value;else analysisSharedFocus=value;trend.setFocus(value);focusChip.setText("高亮 · "+value);}));addSurface(trendCard);
