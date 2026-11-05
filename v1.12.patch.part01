@@ -1,0 +1,42 @@
++        LinearLayout quickRanges=new LinearLayout(this);quickRanges.setOrientation(LinearLayout.HORIZONTAL);
++        String[] quickLabels={"近30天","近3个月","近1年","全部历史"};
++        for(int i=0;i<quickLabels.length;i++){
++            String label=quickLabels[i];TextView q=chip(label,false,COLOR_PRIMARY);q.setTextColor(COLOR_PRIMARY);
++            q.setOnClickListener(v->{applyAnalysisQuickRange(label);showAnalytics();});
++            quickRanges.addView(q,new LinearLayout.LayoutParams(0,-2,1));
++            if(i<quickLabels.length-1){Space gap=new Space(this);quickRanges.addView(gap,new LinearLayout.LayoutParams(dp(6),1));}
++        }
++        addToCard(controls,quickRanges);
+         Button reset=ghostButton("恢复当前所选月份");reset.setOnClickListener(v->{analysisRangeMonth="";ensureAnalysisRange();showAnalytics();});controls.addView(reset);addSurface(controls);
+ 
+         if(analysisEnd.isBefore(analysisStart)){LinearLayout err=surfaceCard();TextView e=text("结束日期不能早于开始日期。",15,true);e.setTextColor(COLOR_DANGER);err.addView(e);addSurface(err);return;}
+--- a/app/src/main/java/com/offline/ledger/WalletNotificationListener.java
++++ b/app/src/main/java/com/offline/ledger/WalletNotificationListener.java
+@@ -55,7 +55,8 @@
+             tx.id="wallet:"+sbn.getKey()+":"+amount;
+             tx.date=LedgerStore.today(); tx.amount=amount;
+             tx.merchant=merchant(title,detail); tx.category=guessCategory(all);
+-            tx.wallet="个人"; tx.source=walletPackage?"Google 钱包通知":"支付通知："+pkg;
++            boolean payPayRecord=isPayPayRecord(pkg,all);
++            tx.wallet=payPayRecord?"公用":"个人"; tx.source=walletPackage?"Google 钱包通知":"支付通知："+pkg;
+             tx.raw="来源："+pkg+"\n"+all; tx.pending=true;
+             tx.notificationTime=sbn.getPostTime(); tx.mergeExcluded=false;
+             imported=LedgerStore.addIfNew(this,tx);
+@@ -122,6 +123,12 @@
+         return x.replace('，',',').replace('￥','¥');
+     }
+ 
++    private static boolean isPayPayRecord(String pkg,String text){
++        String p=pkg==null?"":pkg.toLowerCase(Locale.ROOT);
++        String t=normalize(text).toLowerCase(Locale.ROOT);
++        return p.contains("paypay")||t.contains("paypay");
++    }
++
+     private static boolean isWalletPackage(String pkg) {
+         return "com.google.android.apps.walletnfcrel".equals(pkg)
+                 || "com.google.android.gms".equals(pkg)
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -10,8 +10,8 @@
+         applicationId 'com.offline.ledger'
+         minSdk 26
