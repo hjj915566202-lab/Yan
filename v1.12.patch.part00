@@ -1,0 +1,29 @@
+--- a/app/src/main/java/com/offline/ledger/MainActivity.java
++++ b/app/src/main/java/com/offline/ledger/MainActivity.java
+@@ -825,6 +825,21 @@
+         LinearLayout c=surfaceCard();c.setElevation(0);c.setPadding(dp(12),dp(12),dp(12),dp(12));TextView l=muted(label);l.setTextSize(11);TextView v=text(yen.format(value),16,true);v.setTextColor(accent);addToCard(c,l);c.addView(v);return c;
+     }
+ 
++    private void applyAnalysisQuickRange(String label){
++        LocalDate today=LocalDate.now();
++        analysisRangeMonth="custom";
++        if("近30天".equals(label)){analysisStart=today.minusDays(29);analysisEnd=today;return;}
++        if("近3个月".equals(label)){analysisStart=today.minusMonths(3).plusDays(1);analysisEnd=today;return;}
++        if("近1年".equals(label)){analysisStart=today.minusYears(1).plusDays(1);analysisEnd=today;return;}
++        LocalDate earliest=null;
++        for(LedgerStore.Tx tx:LedgerStore.load(this)){
++            if(tx.pending||"固定支出".equals(tx.category)||tx.date==null||tx.date.length()<10)continue;
++            try{LocalDate d=LocalDate.parse(tx.date);if(earliest==null||d.isBefore(earliest))earliest=d;}catch(Exception ignored){}
++        }
++        if(earliest==null)earliest=YearMonth.parse(selectedMonth).atDay(1);
++        analysisStart=earliest;analysisEnd=today.isBefore(earliest)?earliest:today;
++    }
++
+     private void showAnalytics(){
+         currentScreen="分析";clear();ensureAnalysisRange();pageTitle("支出分析","按日期范围查看每日、每周、每月和每年趋势与分类占比");
+ 
+@@ -833,6 +848,16 @@
+         TextView start=chip("开始 · "+analysisStart,false,COLOR_PRIMARY);TextView end=chip("结束 · "+analysisEnd,false,COLOR_PRIMARY);start.setTextColor(COLOR_PRIMARY);end.setTextColor(COLOR_PRIMARY);
+         start.setOnClickListener(v->pickAnalysisDate(true));end.setOnClickListener(v->pickAnalysisDate(false));dates.addView(start,new LinearLayout.LayoutParams(0,-2,1));Space dg=new Space(this);dates.addView(dg,new LinearLayout.LayoutParams(dp(8),1));dates.addView(end,new LinearLayout.LayoutParams(0,-2,1));addToCard(controls,dates);
+         CheckBox includeFixed=new CheckBox(this);includeFixed.setText("包含固定支出（按涉及月份完整计入）");includeFixed.setTextSize(14);includeFixed.setTextColor(COLOR_TEXT);includeFixed.setButtonTintList(ColorStateList.valueOf(COLOR_PRIMARY));includeFixed.setChecked(analysisIncludeFixed);includeFixed.setOnCheckedChangeListener((buttonView,isChecked)->{analysisIncludeFixed=isChecked;showAnalytics();});addToCard(controls,includeFixed);
++
